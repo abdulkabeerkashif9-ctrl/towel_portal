@@ -3,6 +3,8 @@ import { INPUT_TYPES } from "./FieldInput"
 
 export interface Section {
   key: string
+  fieldname: string | null
+  hidden: boolean
   label: string | null
   collapsible: boolean
   depends_on: string | null
@@ -25,7 +27,7 @@ export function buildLayout(fields: DocField[]): Tab[] {
   const ensureSection = (): Section => {
     if (section) return section
     const t = ensureTab()
-    section = { key: `${t.key}-s${t.sections.length}`, label: null, collapsible: false, depends_on: null, columns: [[]] }
+    section = { key: `${t.key}-s${t.sections.length}`, fieldname: null, hidden: false, label: null, collapsible: false, depends_on: null, columns: [[]] }
     t.sections.push(section)
     return section
   }
@@ -37,11 +39,11 @@ export function buildLayout(fields: DocField[]): Tab[] {
       section = null
     } else if (df.fieldtype === "Section Break") {
       const t = ensureTab()
-      section = { key: `${t.key}-s${t.sections.length}`, label: df.label, collapsible: Boolean(df.collapsible), depends_on: df.depends_on, columns: [[]] }
+      section = { key: `${t.key}-s${t.sections.length}`, fieldname: df.fieldname, hidden: Boolean(df.hidden), label: df.label, collapsible: Boolean(df.collapsible), depends_on: df.depends_on, columns: [[]] }
       t.sections.push(section)
     } else if (df.fieldtype === "Column Break") {
       ensureSection().columns.push([])
-    } else if (df.fieldtype === "Table" || (INPUT_TYPES.includes(df.fieldtype) && !df.hidden)) {
+    } else if (df.fieldtype === "Table" || INPUT_TYPES.includes(df.fieldtype)) {
       const s = ensureSection()
       s.columns[s.columns.length - 1].push(df)
     }

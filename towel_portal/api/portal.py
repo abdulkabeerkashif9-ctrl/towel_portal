@@ -2,7 +2,7 @@
 
 Every method re-checks Frappe permissions, so the portal can never do more
 than the logged-in user could do in Desk. Only doctypes listed in
-``towel_portal.portal_config.PORTAL_DOCTYPES`` are reachable.
+``towel_portal.portal_config.PORTAL_DOCTYPES`` or discovered from ``PORTAL_APPS`` (portal_registry) are reachable.
 """
 
 import frappe
@@ -10,7 +10,8 @@ import frappe.sessions
 from frappe import _
 from frappe.utils import cint, flt
 
-from towel_portal.portal_config import BRAND, PORTAL_DOCTYPES, SECTIONS
+from towel_portal.portal_config import BRAND, PORTAL_APPS, PORTAL_DOCTYPES, SECTIONS
+from towel_portal.portal_registry import get_registry
 
 PERM_TYPES = ("read", "write", "create", "submit", "cancel", "delete")
 STANDARD_FIELDS = {"name", "owner", "creation", "modified", "modified_by", "docstatus", "idx"}
@@ -45,7 +46,7 @@ ALLOWED_RECALC_METHODS = ("set_missing_values", "calculate_taxes_and_totals")
 
 
 def _cfg(doctype):
-	cfg = PORTAL_DOCTYPES.get(doctype)
+	cfg = get_registry().get(doctype)
 	if not cfg:
 		frappe.throw(_("{0} is not available in the portal").format(doctype), frappe.PermissionError)
 	return cfg
@@ -71,6 +72,13 @@ def _public_config(doctype, cfg):
 	meta = frappe.get_meta(doctype)
 	out = {k: v for k, v in cfg.items()}
 	out["doctype"] = doctype
+	# drop references to fields this site's doctype doesn't have (customised or older versions)
+	out["list_fields"] = [f for f in cfg.get("list_fields", []) if _valid_field(meta, f)]
+	for key in ("date_field", "party_field", "status_field", "title_field"):
+		if out.get(key) and not _valid_field(meta, out[key]):
+			out[key] = None
+	if out.get("report") and not meta.has_field(out["report"]["group_by"]):
+		out["report"] = None
 	out["is_submittable"] = cint(meta.is_submittable)
 	return out
 
@@ -121,6 +129,52 @@ def _order_by(doctype, meta, order_by):
 	return f"`tab{doctype}`.`{field}` {direction}"
 
 
+# ---------------------------------------------------------- client scripts
+
+
+def _read(path):
+	try:
+		with open(path, encoding="utf-8") as f:
+			return f.read()
+	except OSError:
+		return ""
+
+
+def _client_scripts(doctypes):
+	"""Desk client scripts for these doctypes, run by the portal's compatibility layer.
+
+	Only scripts that belong to this site's custom apps are sent (a doctype's own .js file, `doctype_js`
+	hooks and enabled Client Script records). ERPNext's own form controllers are intentionally left out;
+	the portal reimplements that behaviour server side (see `recalculate`).
+	"""
+	scripts = []
+	for doctype in doctypes:
+		meta = frappe.get_meta(doctype)
+		module_app = frappe.local.module_app.get(frappe.scrub(meta.module or ""))
+		if module_app in PORTAL_APPS and not meta.custom:
+			name = frappe.scrub(doctype)
+			code = _read(frappe.get_module_path(meta.module, "doctype", name, name + ".js"))
+			if code.strip():
+				scripts.append({"doctype": doctype, "label": f"{module_app}/{name}.js", "code": code})
+
+		for app in PORTAL_APPS:
+			if app not in frappe.get_installed_apps():
+				continue
+			for rel in frappe.get_hooks("doctype_js", app_name=app).get(doctype, []):
+				code = _read(frappe.get_app_path(app, *rel.strip("/").split("/")))
+				if code.strip():
+					scripts.append({"doctype": doctype, "label": f"{app}/{rel}", "code": code})
+
+		for row in frappe.get_all(
+			"Client Script",
+			filters={"dt": doctype, "enabled": 1, "view": "Form"},
+			fields=["name", "script"],
+		):
+			if (row.script or "").strip():
+				scripts.append({"doctype": doctype, "label": f"Client Script: {row.name}", "code": row.script})
+	return scripts
+
+
 # ------------------------------------------------------------------- boot
 
 
@@ -134,7 +188,7 @@ def get_csrf_token():
 def get_boot():
 	user = frappe.get_cached_doc("User", frappe.session.user)
 	doctypes = []
-	for doctype, cfg in PORTAL_DOCTYPES.items():
+	for doctype, cfg in get_registry().items():
 		if not frappe.db.exists("DocType", doctype):
 			continue  # app not installed (e.g. ERPNext modules disabled)
 		doctypes.append({**_public_config(doctype, cfg), "perms": _perms(doctype)})
@@ -143,6 +197,11 @@ def get_boot():
 		"brand": BRAND,
 		"sections": SECTIONS,
 		"currency": _default_currency(),
+		"defaults": {
+			"company": frappe.defaults.get_user_default("Company"),
+			"currency": _default_currency(),
+			"fiscal_year": frappe.defaults.get_user_default("fiscal_year"),
+		},
 		"user": {
 			"name": user.name,
 			"full_name": user.full_name,
@@ -186,6 +245,7 @@ def get_doctype_meta(doctype):
 		"meta": meta,
 		"children": children,
 		"perms": _perms(doctype),
+		"scripts": _client_scripts([doctype, *children]),
 	}
 
 
@@ -284,7 +344,9 @@ def get_report(doctype, search=None, from_date=None, to_date=None, party=None, d
 @frappe.whitelist()
 def get_dashboard():
 	cards, recent = [], []
-	for doctype, cfg in PORTAL_DOCTYPES.items():
+	for doctype, cfg in get_registry().items():
+		if doctype not in PORTAL_DOCTYPES and not cfg.get("dashboard"):
+			continue  # keep the dashboard to a handful of cards; mark others with "dashboard": True
 		if not frappe.db.exists("DocType", doctype) or not frappe.has_permission(doctype, "read"):
 			continue
 		meta = frappe.get_meta(doctype)
@@ -349,7 +411,7 @@ def get_new_doc(doctype):
 @frappe.whitelist()
 def get_doc(doctype, name):
 	_cfg(doctype)
-	doc = frappe.get_doc(doctype, name)
+	doc = frappe.get_doc(doctype) if frappe.get_meta(doctype).issingle else frappe.get_doc(doctype, name)
 	doc.check_permission("read")
 	doc.run_method("onload")
 	return {
@@ -404,13 +466,17 @@ def delete_doc(doctype, name):
 
 
 @frappe.whitelist()
-def search_link(doctype, txt="", filters=None, page_length=10):
-	"""Autocomplete for Link fields (same engine Desk uses, so link permissions apply)."""
+def search_link(doctype, txt="", filters=None, query=None, page_length=10):
+	"""Autocomplete for Link fields (same engine Desk uses, so link permissions apply).
+
+	`query` is the optional custom search method a client script's ``set_query`` returned.
+	"""
 	from frappe.desk.search import build_for_autosuggest, search_widget
 
 	results = search_widget(
 		doctype,
 		(txt or "").strip(),
+		query=query or None,
 		filters=frappe.parse_json(filters) if filters else None,
 		page_length=min(cint(page_length) or 10, 50),
 	)

@@ -116,16 +116,23 @@ const methods = {
   "frappe.client.get_value": ({ doctype, filters }) => ({ customer_name: filters, supplier_name: filters, item_name: filters }),
 }
 
+if (process.env.PORTAL_APP_ROOTS) {
+  const { registerApps } = await import("./apps.mjs")
+  console.log(`loaded ${registerApps({ methods, cfgs, db, allPerms })} doctypes from ${process.env.PORTAL_APP_ROOTS}`)
+}
+
 http.createServer((req, res) => {
   const url = new URL(req.url, "http://x")
   const m = url.pathname.match(/^\/api\/method\/(?:towel_portal\.api\.portal\.)?(.+)$/)
+  // Custom server methods of other apps (called by their client scripts) just answer null
+  if (m && !methods[m[1]] && m[1].includes(".")) { res.writeHead(200, { "Content-Type": "application/json" }); return res.end('{"message":null}') }
   if (!m || !methods[m[1]]) { res.writeHead(404); return res.end("{}") }
   let body = ""
   req.on("data", (c) => (body += c))
   req.on("end", () => {
     try {
       const out = methods[m[1]](body ? JSON.parse(body) : {})
-      res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify({ message: out }))
+      res.writeHead(200, { "Content-Type": "application/json" }); res.end(JSON.stringify(out?.__raw ? { message: out.message, docs: out.docs } : { message: out }))
     } catch (e) {
       res.writeHead(e.status || 417, { "Content-Type": "application/json" })
       res.end(JSON.stringify({ exception: `frappe.exceptions.ValidationError: ${e.message}`, _server_messages: JSON.stringify([JSON.stringify({ message: e.message })]) }))

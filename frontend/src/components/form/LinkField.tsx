@@ -12,13 +12,16 @@ interface Props {
   onChange: (value: string | null) => void
   disabled?: boolean
   placeholder?: string
-  filters?: Record<string, unknown>
+  filters?: unknown
+  /** Evaluated whenever the dropdown is open: Desk `set_query` results (filters and/or a custom query method) */
+  getQuery?: () => { filters?: unknown; query?: string } | undefined
+  name?: string
   className?: string
   clearable?: boolean
 }
 
 /** Autocomplete over Frappe's own link search, so permissions and link filters match Desk. */
-export function LinkField({ doctype, value, onChange, disabled, placeholder, filters, className, clearable }: Props) {
+export function LinkField({ doctype, value, onChange, disabled, placeholder, filters, getQuery, name, className, clearable }: Props) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState(value ?? "")
   const [txt, setTxt] = useState("")
@@ -31,9 +34,10 @@ export function LinkField({ doctype, value, onChange, disabled, placeholder, fil
     return () => clearTimeout(t)
   }, [text, value])
 
+  const q = open ? (getQuery?.() ?? (filters ? { filters } : undefined)) : undefined
   const { data = [], isFetching } = useQuery({
-    queryKey: ["link", doctype, txt, filters],
-    queryFn: () => call<{ value: string; description?: string }[]>("search_link", { doctype, txt, filters }),
+    queryKey: ["link", doctype, txt, q],
+    queryFn: () => call<{ value: string; description?: string }[]>("search_link", { doctype, txt, filters: q?.filters, query: q?.query }),
     enabled: open,
     staleTime: 30_000,
   })
@@ -50,6 +54,7 @@ export function LinkField({ doctype, value, onChange, disabled, placeholder, fil
         <div ref={anchorRef} className={cn("relative", className)}>
           <input
             ref={inputRef}
+            data-fieldname={name}
             className={cn(inputClass, "pr-14")}
             value={text}
             disabled={disabled}

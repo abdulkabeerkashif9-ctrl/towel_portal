@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom"
-import { LayoutDashboard, Menu, PanelLeftClose, PanelLeftOpen, Moon, Sun } from "lucide-react"
+import { ChevronRight, LayoutDashboard, Menu, PanelLeftClose, PanelLeftOpen, Moon, Sun } from "lucide-react"
 import { useBoot, useTheme } from "@/hooks/data"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,17 @@ export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const location = useLocation()
+  // Sections the user collapsed; remembered between visits
+  const [closed, setClosed] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("portal-closed-sections") ?? '["Masters","Settings"]')) } catch { return new Set(["Masters", "Settings"]) }
+  })
+  const toggleSection = (name: string) =>
+    setClosed((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(name)) next.add(name)
+      try { localStorage.setItem("portal-closed-sections", JSON.stringify([...next])) } catch { /* private mode */ }
+      return next
+    })
 
   const link = ({ isActive }: { isActive: boolean }) =>
     cn(
@@ -23,7 +34,8 @@ export function AppShell() {
       collapsed && "justify-center px-0 [&_span]:hidden",
     )
 
-  const grouped = sections
+  const known = new Set(sections)
+  const grouped = [...sections, ...new Set(doctypes.map((d) => d.section).filter((s) => !known.has(s)))]
     .map((s) => ({ section: s, items: doctypes.filter((d) => d.section === s && d.perms.read) }))
     .filter((g) => g.items.length)
 
@@ -49,18 +61,30 @@ export function AppShell() {
           {!collapsed && <div className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">Overview</div>}
           <NavLink to="/" end className={link}><LayoutDashboard /> <span>Dashboard</span></NavLink>
         </div>
-        {grouped.map(({ section, items }) => (
-          <div key={section}>
-            {!collapsed && <div className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">{section}</div>}
-            <div className="space-y-0.5">
-              {items.map((d) => (
-                <NavLink key={d.route} to={`/${d.route}`} className={link} title={d.plural}>
-                  <DoctypeIcon name={d.icon} /> <span>{d.plural}</span>
-                </NavLink>
-              ))}
+        {grouped.map(({ section, items }) => {
+          const activeInside = items.some((d) => location.pathname.split("/")[1] === d.route)
+          const isOpen = collapsed || activeInside || !closed.has(section)
+          return (
+            <div key={section}>
+              {!collapsed && (
+                <button onClick={() => toggleSection(section)} className="mb-1.5 flex w-full cursor-pointer items-center gap-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 hover:text-foreground">
+                  <ChevronRight className={cn("size-3 transition-transform", isOpen && "rotate-90")} />
+                  {section}
+                  <span className="ml-auto font-normal tabular-nums">{items.length}</span>
+                </button>
+              )}
+              {isOpen && (
+                <div className="space-y-0.5">
+                  {items.map((d) => (
+                    <NavLink key={d.route} to={`/${d.route}`} className={link} title={d.plural}>
+                      <DoctypeIcon name={d.icon} /> <span className="truncate">{d.plural}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
       </nav>
       <div className="border-t border-border p-3">
         <button onClick={() => setCollapsed(!collapsed)} className={cn("hidden w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-accent md:flex", collapsed && "justify-center px-0")}>

@@ -72,3 +72,37 @@
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-thumb { background: var(--input); border-radius: 8px; border: 2px solid var(--background); }
 }
+
+/*
+ * Desk client scripts build dialog bodies out of Bootstrap markup (table, form-control, text-right...).
+ * The portal doesn't ship Bootstrap, so the handful of classes they use are mapped to portal styles here.
+ */
+.frappe-html { font-size: 13px; }
+.frappe-html table { width: 100%; border-collapse: collapse; margin-bottom: 0.5rem; }
+.frappe-html th, .frappe-html td { padding: 0.45rem 0.7rem; vertical-align: middle; text-align: left; }
+.frappe-html thead th { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); background: var(--muted); }
+.frappe-html .table-bordered th, .frappe-html .table-bordered td { border: 1px solid var(--border); }
+.frappe-html tbody tr:hover { background: color-mix(in srgb, var(--accent) 50%, transparent); }
+.frappe-html .text-right { text-align: right; }
+.frappe-html .text-center { text-align: center; }
+.frappe-html .text-muted, .frappe-html .help-box { color: var(--muted-foreground); }
+.frappe-html .text-danger { color: var(--destructive); }
+.frappe-html .text-success { color: var(--success); }
+.frappe-html .hidden, .frappe-html .hide { display: none !important; }
+.frappe-html .pull-right { float: right; }
+.frappe-html .form-control, .frappe-html input[type="text"], .frappe-html input[type="number"], .frappe-html input[type="date"], .frappe-html select, .frappe-html textarea {
+  width: 100%; min-width: 4rem; height: 2rem; padding: 0 0.6rem; border-radius: 6px; border: 1px solid var(--input);
+  background: transparent; color: inherit; font-size: 13px; outline: none;
+}
+.frappe-html textarea { height: auto; padding: 0.4rem 0.6rem; }
+.frappe-html .form-control:focus, .frappe-html input:focus, .frappe-html select:focus { border-color: var(--ring); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 30%, transparent); }
+.frappe-html input[type="checkbox"] { width: 1rem; height: 1rem; min-width: 0; accent-color: var(--primary); }
+.frappe-html .btn { display: inline-flex; align-items: center; gap: 0.35rem; height: 2rem; padding: 0 0.8rem; border-radius: 6px; border: 1px solid var(--input); background: transparent; color: inherit; font-size: 13px; cursor: pointer; }
+.frappe-html .btn:hover { background: var(--accent); }
+.frappe-html .btn-xs, .frappe-html .btn-sm { height: 1.7rem; padding: 0 0.6rem; font-size: 12px; }
+.frappe-html .btn-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.frappe-html .btn-danger { background: var(--destructive); border-color: var(--destructive); color: #fff; }
+.frappe-html .small, .frappe-html small { font-size: 12px; }
+.frappe-html .mt-2 { margin-top: 0.5rem; }
+.frappe-html .mb-2 { margin-bottom: 0.5rem; }
+.frappe-html .row { display: flex; flex-wrap: wrap; gap: 0.75rem; }

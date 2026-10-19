@@ -1,18 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, ExternalLink, Save, Send, Trash2, XCircle } from "lucide-react"
+import { ArrowLeft, ChevronDown, ExternalLink, Save, Send, Trash2, XCircle } from "lucide-react"
 import { toast } from "sonner"
+import { attachScripts, clearRouteOptions, pendingDocs, peekRouteOptions } from "@/compat/frappe"
+import { FormRuntime, isNewName, type CustomButton, type Host, type View } from "@/compat/runtime"
 import { call } from "@/lib/api"
-import { defaultFor, findMissing, itemDefaults, mergeServerDoc } from "@/lib/doc"
 import { DOCSTATUS_LABEL, toneFor } from "@/lib/format"
 import type { MetaBundle, Perms, PortalDoctype, Row } from "@/lib/types"
 import { useBoot, useMeta } from "@/hooks/data"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
-import { FormLayout, type FormApi } from "@/components/form/FormLayout"
+import { FormLayout } from "@/components/form/FormLayout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
+
+const deskSlug = (doctype: string) => doctype.toLowerCase().replace(/[^a-z0-9]+/g, "-")
 
 export function FormPage() {
   const { route = "", name = "new" } = useParams()
@@ -21,13 +25,21 @@ export function FormPage() {
   return <DocLoader key={`${route}/${name}`} cfg={cfg} name={name} />
 }
 
+interface Loaded { doc: Row; perms?: Perms; initialValues?: Row }
+
 function DocLoader({ cfg, name }: { cfg: PortalDoctype; name: string }) {
+  const [nonce, setNonce] = useState(0)
   const metaQ = useMeta(cfg.doctype)
-  const isNew = name === "new"
   const docQ = useQuery({
-    queryKey: ["doc", cfg.doctype, name],
-    queryFn: (): Promise<{ doc: Row; perms?: Perms }> =>
-      isNew ? call<Row>("get_new_doc", { doctype: cfg.doctype }).then((doc) => ({ doc })) : call<{ doc: Row; perms: Perms }>("get_doc", { doctype: cfg.doctype, name }),
+    queryKey: ["doc", cfg.doctype, name, nonce],
+    queryFn: async (): Promise<Loaded> => {
+      const pending = pendingDocs.get(`${cfg.doctype}/${name}`)
+      if (pending) return { doc: pending }
+      if (isNewName(name) || name === "new") {
+        return { doc: await call<Row>("get_new_doc", { doctype: cfg.doctype }), initialValues: peekRouteOptions(cfg.doctype) }
+      }
+      return call<{ doc: Row; perms: Perms }>("get_doc", { doctype: cfg.doctype, name })
+    },
     gcTime: 0,
     staleTime: 0,
     refetchOnWindowFocus: false,
@@ -37,7 +49,7 @@ function DocLoader({ cfg, name }: { cfg: PortalDoctype; name: string }) {
   if (error) {
     return (
       <div className="mx-auto max-w-md py-20 text-center">
-        <p className="font-medium">Couldn’t open {isNew ? `new ${cfg.doctype}` : name}</p>
+        <p className="font-medium">Couldn’t open {name === "new" ? `new ${cfg.doctype}` : name}</p>
         <p className="mt-1 text-sm text-muted-foreground">{(error as Error).message}</p>
         <Button asChild variant="outline" className="mt-4"><Link to={`/${cfg.route}`}>Back to {cfg.plural}</Link></Button>
       </div>
@@ -45,232 +57,177 @@ function DocLoader({ cfg, name }: { cfg: PortalDoctype; name: string }) {
   }
   if (!metaQ.data || !docQ.data) return <div className="space-y-4"><Skeleton className="h-9 w-64" /><Skeleton className="h-64 w-full" /><Skeleton className="h-48 w-full" /></div>
 
-  const perms = docQ.data.perms ?? { ...metaQ.data.perms, write: metaQ.data.perms.create }
-  return <DocEditor cfg={cfg} bundle={metaQ.data} initial={docQ.data.doc} perms={perms} isNew={isNew} />
+  const loaded = docQ.data
+  const perms = loaded.perms ?? { ...metaQ.data.perms, write: metaQ.data.perms.create }
+  return <DocEditor key={nonce} cfg={cfg} bundle={metaQ.data} initial={loaded.doc} initialValues={loaded.initialValues} perms={perms} reload={() => setNonce((n) => n + 1)} />
 }
 
-function DocEditor({ cfg, bundle, initial, perms, isNew }: { cfg: PortalDoctype; bundle: MetaBundle; initial: Row; perms: Perms; isNew: boolean }) {
-  const { roles } = useBoot()
+function CustomButtons({ rt, view }: { rt: FormRuntime; view: View }) {
+  const visible = view.buttons.filter((b) => b.el[0]?.style.display !== "none")
+  const groups = new Map<string, CustomButton[]>()
+  for (const b of visible) if (b.group) groups.set(b.group, [...(groups.get(b.group) ?? []), b])
+
+  return (
+    <>
+      {visible.filter((b) => !b.group).map((b) => {
+        const st = b.el[0]?.style
+        return (
+          <Button key={b.id} variant="outline" size="sm" onClick={() => void rt.clickButton(b)} style={{ backgroundColor: st?.backgroundColor || undefined, color: st?.color || undefined, fontWeight: st?.fontWeight || undefined, borderColor: st?.backgroundColor || undefined }}>
+            {b.label}
+          </Button>
+        )
+      })}
+      {[...groups].map(([group, items]) => (
+        <DropdownMenu key={group}>
+          <DropdownMenuTrigger asChild><Button variant="outline" size="sm">{group} <ChevronDown /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-60">
+            {items.map((b) => <DropdownMenuItem key={b.id} onSelect={() => void rt.clickButton(b)}>{b.label}</DropdownMenuItem>)}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ))}
+    </>
+  )
+}
+
+function DocEditor({ cfg, bundle, initial, initialValues, perms, reload }: { cfg: PortalDoctype; bundle: MetaBundle; initial: Row; initialValues?: Row; perms: Perms; reload: () => void }) {
+  const boot = useBoot()
   const navigate = useNavigate()
   const qc = useQueryClient()
 
-  const [doc, setDoc] = useState<Row>(initial)
-  const [dirty, setDirty] = useState(isNew)
-  const [errors, setErrors] = useState<Set<string>>(new Set())
+  const host = useMemo<Host>(
+    () => ({
+      boot,
+      routeFor: (doctype) => boot.doctypes.find((d) => d.doctype === doctype && d.perms.read)?.route,
+      navigate: (path, opts) => navigate(path, opts),
+      reload,
+    }),
+    [boot, navigate, reload],
+  )
+
+  const [rt] = useState(() => {
+    const runtime = new FormRuntime(bundle, initial, host)
+    attachScripts(runtime, bundle.scripts)
+    return runtime
+  })
+  const started = useRef(false)
+  useEffect(() => {
+    rt.revive()
+    if (!started.current) {
+      started.current = true
+      void rt.start(initialValues).then(clearRouteOptions)
+    }
+    return () => rt.dispose()
+  }, [rt, initialValues])
+
+  const view = useSyncExternalStore(rt.subscribe, rt.getView)
+  const doc = view.doc
+  const [errors, setErrors] = useState<{ fields: Set<string>; at: number }>({ fields: new Set(), at: 0 })
   const [busy, setBusy] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<null | "submit" | "cancel" | "delete">(null)
+  const shownErrors = errors.at === view.uiEdits ? errors.fields : new Set<string>()
 
-  const docRef = useRef(doc)
-  const version = useRef(0)
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const bundleRef = useRef(bundle)
-  bundleRef.current = bundle
-
-  // ---------------------------------------------------------------- state helpers
-  const replace = (next: Row, markDirty = true) => {
-    docRef.current = next
-    setDoc(next)
-    if (markDirty) { version.current++; setDirty(true); setErrors(new Set()) }
-  }
-
-  const recalc = useCallback(async () => {
-    const snapshot = docRef.current
-    const sent = version.current
-    if (!cfg.recalculate || !cfg.item_table || !(snapshot[cfg.item_table] ?? []).some((r: Row) => r.item_code)) return
-    try {
-      const server = await call<Row>("recalculate", { doc: snapshot })
-      if (version.current !== sent) return // user kept typing; a newer recalculation is queued
-      replace(mergeServerDoc(docRef.current, server), false)
-    } catch (e) {
-      toast.error((e as Error).message, { id: "recalc" })
-    }
-  }, [cfg])
-
-  const scheduleRecalc = useCallback(() => {
-    clearTimeout(timer.current)
-    timer.current = setTimeout(recalc, 600)
-  }, [recalc])
-  useEffect(() => () => clearTimeout(timer.current), [])
-
-  /** Applies async results (fetched values, item defaults) without clobbering newer edits. */
-  const patch = (fn: (current: Row) => Row) => {
-    replace(fn(docRef.current))
-    scheduleRecalc()
-  }
-
-  // ---------------------------------------------------------------- field interactions
-  const fetchFrom = async (fields: MetaBundle["meta"]["fields"], linkField: string, linkValue: string | null, linkDoctype: string) => {
-    const deps = fields.filter((f) => f.fetch_from?.startsWith(`${linkField}.`))
-    if (!deps.length) return {}
-    if (!linkValue) return Object.fromEntries(deps.map((f) => [f.fieldname, null]))
-    const targets = deps.map((f) => f.fetch_from!.split(".")[1])
-    const got = await call<Row>("frappe.client.get_value", { doctype: linkDoctype, fieldname: JSON.stringify([...new Set(targets)]), filters: linkValue })
-    return Object.fromEntries(deps.map((f) => [f.fieldname, got?.[f.fetch_from!.split(".")[1]] ?? null]))
-  }
-
-  const afterParentChange = async (fieldname: string, value: any) => {
-    try {
-      const df = bundleRef.current.meta.fields.find((f) => f.fieldname === fieldname)
-      if (df?.fieldtype === "Link" && df.options) {
-        const updates = await fetchFrom(bundleRef.current.meta.fields, fieldname, value, df.options)
-        if (Object.keys(updates).length) patch((d) => ({ ...d, ...updates }))
-      }
-      const taxes = cfg.taxes
-      if (taxes && fieldname === taxes.template_field) {
-        const rows = value ? await call<Row[]>("erpnext.controllers.accounts_controller.get_taxes_and_charges", { master_doctype: taxes.template_doctype, master_name: value }) : []
-        const clean = rows.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !["name", "parent", "parenttype", "parentfield", "creation", "modified", "owner", "modified_by", "docstatus", "idx"].includes(k))))
-        patch((d) => ({ ...d, [taxes.table]: clean }))
-      } else if (cfg.recalculate && df && !["Data", "Small Text", "Text", "Long Text", "Text Editor"].includes(df.fieldtype)) {
-        scheduleRecalc()
-      }
-    } catch (e) {
-      toast.error((e as Error).message)
-    }
-  }
-
-  const afterCellChange = async (table: string, index: number, fieldname: string, value: any) => {
-    try {
-      const tdf = bundleRef.current.meta.fields.find((f) => f.fieldname === table)
-      const child = tdf?.options ? bundleRef.current.children[tdf.options] : undefined
-      if (!child) return
-      const df = child.fields.find((f) => f.fieldname === fieldname)
-      let updates: Row = {}
-      if (df?.fieldtype === "Link" && df.options) updates = await fetchFrom(child.fields, fieldname, value, df.options)
-      if (table === cfg.item_table && fieldname === "item_code" && value) {
-        const row = docRef.current[table]?.[index] ?? {}
-        const details = await call<Row>("get_item_details", { doctype: cfg.doctype, item_code: value, doc: docRef.current, qty: row.qty || 1 })
-        updates = { ...updates, ...itemDefaults(details, child.fields) }
-      }
-      if (Object.keys(updates).length) {
-        patch((d) => ({ ...d, [table]: d[table].map((r: Row, i: number) => (i === index ? { ...r, ...updates } : r)) }))
-      } else if (cfg.recalculate) scheduleRecalc()
-    } catch (e) {
-      toast.error((e as Error).message)
-    }
-  }
-
-  const api: FormApi = {
-    setValue: (fieldname, value) => { replace({ ...docRef.current, [fieldname]: value }); void afterParentChange(fieldname, value) },
-    setCell: (table, index, fieldname, value) => {
-      replace({ ...docRef.current, [table]: docRef.current[table].map((r: Row, i: number) => (i === index ? { ...r, [fieldname]: value } : r)) })
-      void afterCellChange(table, index, fieldname, value)
-    },
-    addRow: (table) => {
-      const tdf = bundleRef.current.meta.fields.find((f) => f.fieldname === table)!
-      const child = bundleRef.current.children[tdf.options!]
-      const rows: Row[] = docRef.current[table] ?? []
-      const row: Row = { doctype: tdf.options, parentfield: table, parenttype: cfg.doctype, docstatus: 0, __islocal: 1, idx: rows.length + 1 }
-      for (const f of child.fields) { const d = defaultFor(f); if (d !== undefined) row[f.fieldname] = d }
-      replace({ ...docRef.current, [table]: [...rows, row] })
-    },
-    removeRow: (table, index) => {
-      replace({ ...docRef.current, [table]: docRef.current[table].filter((_: Row, i: number) => i !== index).map((r: Row, i: number) => ({ ...r, idx: i + 1 })) })
-      scheduleRecalc()
-    },
-  }
-
-  // ---------------------------------------------------------------- actions
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["list", cfg.doctype] })
     void qc.invalidateQueries({ queryKey: ["report", cfg.doctype] })
     void qc.invalidateQueries({ queryKey: ["dashboard"] })
   }
 
-  const persist = async (opts: { navigate: boolean }): Promise<Row | null> => {
-    const childFields = Object.fromEntries(Object.entries(bundle.children).map(([k, v]) => [k, v.fields]))
-    const missing = findMissing(bundle.meta.fields, docRef.current, roles, childFields)
-    if (missing.length) {
-      setErrors(new Set(missing.map((m) => m.fieldname)))
-      toast.error(`Missing: ${missing.map((m) => m.label).join(", ")}`)
-      return null
-    }
-    clearTimeout(timer.current)
-    const saved = await call<Row>("save_doc", { doc: docRef.current })
-    replace(saved, false)
-    setDirty(false)
-    invalidate()
-    if (isNew && opts.navigate) navigate(`/${cfg.route}/${encodeURIComponent(saved.name)}`, { replace: true })
-    return saved
-  }
-
   const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(label)
-    try { await fn() } catch (e) { toast.error((e as Error).message) } finally { setBusy(null) }
+    try { await fn() } finally { setBusy(null) }
   }
 
-  const save = () => run("save", async () => { if (await persist({ navigate: true })) toast.success(`${doc.name ? "Saved" : "Created"}`) })
+  const act = (action: "Save" | "Update" | "Submit" | "Cancel") =>
+    run(action, async () => {
+      const wasNew = rt.isNew
+      const result = await rt.save(action)
+      if (result.missing) {
+        setErrors({ fields: new Set(result.missing), at: rt.getView().uiEdits })
+        const labels = rt.missing().map((m) => m.label)
+        toast.error(`Missing: ${labels.join(", ")}`)
+        return
+      }
+      if (!result.ok) return
+      invalidate()
+      toast.success(action === "Submit" ? `${rt.doc.name} submitted` : action === "Cancel" ? `${rt.doc.name} cancelled` : wasNew ? `${rt.doc.name} created` : "Saved")
+      if (wasNew && !isNewName(rt.doc.name)) navigate(`/${cfg.route}/${encodeURIComponent(rt.doc.name)}`, { replace: true })
+    })
 
-  const submit = () => run("submit", async () => {
-    const saved = dirty ? await persist({ navigate: false }) : docRef.current
-    if (!saved) return
-    const done = await call<Row>("submit_doc", { doctype: cfg.doctype, name: saved.name })
-    replace(done, false); setDirty(false); invalidate()
-    toast.success(`${done.name} submitted`)
-    if (isNew) navigate(`/${cfg.route}/${encodeURIComponent(done.name)}`, { replace: true })
-  })
-
-  const cancelDoc = () => run("cancel", async () => {
-    const done = await call<Row>("cancel_doc", { doctype: cfg.doctype, name: doc.name })
-    replace(done, false); setDirty(false); invalidate()
-    toast.success(`${done.name} cancelled`)
-  })
-
-  const remove = () => run("delete", async () => {
-    await call("delete_doc", { doctype: cfg.doctype, name: doc.name })
-    invalidate()
-    toast.success(`${doc.name} deleted`)
-    navigate(`/${cfg.route}`, { replace: true })
-  })
+  const remove = () =>
+    run("delete", async () => {
+      if (await rt.remove()) {
+        invalidate()
+        toast.success(`${doc.name} deleted`)
+        navigate(`/${cfg.route}`, { replace: true })
+      }
+    })
 
   // Ctrl/Cmd+S and unsaved-changes guard
-  const saveRef = useRef(save)
-  saveRef.current = save
+  const actRef = useRef(act)
+  actRef.current = act
+  const dirtyRef = useRef(view.dirty)
+  dirtyRef.current = view.dirty
+  const docstatus = doc.docstatus ?? 0
+  const canSaveRef = useRef(false)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); if (perms.write || isNew) saveRef.current() } }
-    const onUnload = (e: BeforeUnloadEvent) => { if (dirtyRef.current) e.preventDefault() }
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault()
+        if (canSaveRef.current) void actRef.current(docstatus === 1 ? "Update" : "Save")
+      }
+    }
+    const onUnload = (e: BeforeUnloadEvent) => { if (dirtyRef.current && !rt.isNew) e.preventDefault() }
     document.addEventListener("keydown", onKey)
     window.addEventListener("beforeunload", onUnload)
     return () => { document.removeEventListener("keydown", onKey); window.removeEventListener("beforeunload", onUnload) }
-  }, [perms.write, isNew])
-  const dirtyRef = useRef(dirty)
-  dirtyRef.current = dirty
+  }, [docstatus, rt])
 
-  // ---------------------------------------------------------------- render
-  const docstatus = doc.docstatus ?? 0
+  const isNew = rt.isNew
   const submittable = Boolean(cfg.is_submittable)
   const editable = isNew ? perms.create : perms.write
   const hasAllowOnSubmit = bundle.meta.fields.some((f) => f.allow_on_submit)
   const canWrite = docstatus === 0 ? editable : docstatus === 1 && hasAllowOnSubmit && perms.write
+  canSaveRef.current = Boolean(canWrite) && !busy
   const statusText = cfg.status_field && doc[cfg.status_field] ? String(doc[cfg.status_field]) : DOCSTATUS_LABEL[docstatus]
   const title = isNew ? `New ${cfg.doctype}` : doc.name
   const heading = !isNew && cfg.title_field && doc[cfg.title_field] && doc[cfg.title_field] !== doc.name ? doc[cfg.title_field] : null
+  const isSingle = Boolean(cfg.is_single)
 
   return (
     <div className="space-y-5 pb-10">
       <div className="flex flex-wrap items-center gap-3">
-        <Button asChild variant="ghost" size="icon-sm"><Link to={`/${cfg.route}`} aria-label="Back"><ArrowLeft /></Link></Button>
+        {!isSingle && <Button asChild variant="ghost" size="icon-sm"><Link to={`/${cfg.route}`} aria-label="Back"><ArrowLeft /></Link></Button>}
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
-            <h1 className="truncate text-xl font-semibold tracking-tight">{title}</h1>
-            {!isNew && <Badge tone={toneFor(statusText)}>{statusText}</Badge>}
-            {dirty && <Badge tone="warning">Not saved</Badge>}
+            <h1 className="truncate text-xl font-semibold tracking-tight">{isSingle ? cfg.doctype : title}</h1>
+            {!isNew && !isSingle && <Badge tone={toneFor(statusText)}>{statusText}</Badge>}
+            {view.dirty && !(isNew && !canWrite) && <Badge tone="warning">Not saved</Badge>}
           </div>
           {heading && <p className="text-sm text-muted-foreground">{heading}</p>}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {!isNew && <Button asChild variant="ghost" size="sm"><a href={`/app/${cfg.doctype.toLowerCase().replace(/ /g, "-")}/${encodeURIComponent(doc.name)}`}><ExternalLink /> Desk</a></Button>}
-          {docstatus === 0 && !isNew && perms.delete && <Button variant="outline" size="sm" disabled={!!busy} onClick={() => setConfirm("delete")}><Trash2 /> Delete</Button>}
+          <CustomButtons rt={rt} view={view} />
+          {!isNew && <Button asChild variant="ghost" size="sm"><a href={`/app/${deskSlug(cfg.doctype)}/${encodeURIComponent(isSingle ? cfg.doctype : doc.name)}`}><ExternalLink /> Desk</a></Button>}
+          {docstatus === 0 && !isNew && !isSingle && perms.delete && <Button variant="outline" size="sm" disabled={!!busy} onClick={() => setConfirm("delete")}><Trash2 /> Delete</Button>}
           {docstatus === 1 && perms.cancel && <Button variant="outline" size="sm" disabled={!!busy} onClick={() => setConfirm("cancel")}><XCircle /> Cancel</Button>}
-          {canWrite && (dirty || docstatus === 0) && <Button variant={submittable && docstatus === 0 ? "outline" : "default"} size="sm" disabled={!!busy} onClick={save}><Save /> {busy === "save" ? "Saving…" : docstatus === 1 ? "Update" : "Save"}</Button>}
-          {docstatus === 0 && submittable && perms.submit && <Button size="sm" disabled={!!busy} onClick={() => setConfirm("submit")}><Send /> {busy === "submit" ? "Submitting…" : "Submit"}</Button>}
+          {canWrite && (view.dirty || docstatus === 0) && (
+            <Button variant={submittable && docstatus === 0 ? "outline" : "default"} size="sm" disabled={!!busy} onClick={() => void act(docstatus === 1 ? "Update" : "Save")}>
+              <Save /> {busy === "Save" || busy === "Update" ? "Saving…" : docstatus === 1 ? "Update" : "Save"}
+            </Button>
+          )}
+          {docstatus === 0 && submittable && perms.submit && <Button size="sm" disabled={!!busy} onClick={() => setConfirm("submit")}><Send /> {busy === "Submit" ? "Submitting…" : "Submit"}</Button>}
         </div>
       </div>
 
-      <FormLayout bundle={bundle} doc={doc} roles={roles} canWrite={Boolean(canWrite)} isNew={isNew} api={api} errors={errors} />
+      {view.intro.map((i, n) => (
+        <div key={n} className={`rounded-lg border px-4 py-2.5 text-sm ${i.color === "red" ? "border-destructive/40 bg-destructive/10" : i.color === "orange" || i.color === "yellow" ? "border-warning/40 bg-warning/10" : i.color === "green" ? "border-success/40 bg-success/10" : "border-primary/40 bg-primary/10"}`}>{i.message}</div>
+      ))}
 
-      <ConfirmDialog open={confirm === "submit"} title={`Submit ${doc.name ?? cfg.doctype}?`} description="Once submitted the document can’t be edited, only cancelled." confirmLabel="Submit" onClose={() => setConfirm(null)} onConfirm={submit} />
-      <ConfirmDialog open={confirm === "cancel"} title={`Cancel ${doc.name}?`} description="This reverses its ledger and stock entries." confirmLabel="Cancel document" destructive onClose={() => setConfirm(null)} onConfirm={cancelDoc} />
-      <ConfirmDialog open={confirm === "delete"} title={`Delete ${doc.name}?`} description="This can’t be undone." confirmLabel="Delete" destructive onClose={() => setConfirm(null)} onConfirm={remove} />
+      <FormLayout bundle={bundle} rt={rt} view={view} roles={boot.roles} canWrite={Boolean(canWrite)} errors={shownErrors} />
+
+      <ConfirmDialog open={confirm === "submit"} title={`Submit ${doc.name ?? cfg.doctype}?`} description="Once submitted the document can’t be edited, only cancelled." confirmLabel="Submit" onClose={() => setConfirm(null)} onConfirm={() => void act("Submit")} />
+      <ConfirmDialog open={confirm === "cancel"} title={`Cancel ${doc.name}?`} description="This reverses its ledger and stock entries." confirmLabel="Cancel document" destructive onClose={() => setConfirm(null)} onConfirm={() => void act("Cancel")} />
+      <ConfirmDialog open={confirm === "delete"} title={`Delete ${doc.name}?`} description="This can’t be undone." confirmLabel="Delete" destructive onClose={() => setConfirm(null)} onConfirm={() => void remove()} />
     </div>
   )
 }

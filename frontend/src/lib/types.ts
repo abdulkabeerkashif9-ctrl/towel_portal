@@ -55,6 +55,8 @@ export interface PortalDoctype {
   party_details?: { party_type: string }
   taxes?: { template_field: string; template_doctype: string; table: string }
   is_submittable: 0 | 1
+  is_single?: boolean
+  module?: string
   perms: Perms
 }
 
@@ -62,9 +64,16 @@ export interface Boot {
   brand: { title: string; subtitle: string }
   sections: string[]
   currency: string
+  defaults: { company: string | null; currency: string; fiscal_year: string | null }
   user: { name: string; full_name: string; email: string; image: string | null; is_desk_user: boolean }
   roles: string[]
   doctypes: PortalDoctype[]
+}
+
+export interface ScriptSource {
+  doctype: string
+  label: string
+  code: string
 }
 
 export interface MetaBundle {
@@ -72,6 +81,7 @@ export interface MetaBundle {
   meta: MetaDict
   children: Record<string, MetaDict>
   perms: Perms
+  scripts: ScriptSource[]
 }
 
 export interface ListResponse {

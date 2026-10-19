@@ -1,5 +1,9 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom"
+import { useEffect } from "react"
 import { Toaster } from "sonner"
+import { DialogHost } from "@/compat/DialogHost"
+import { showServerMessages } from "@/compat/ui"
+import { onServerMessages } from "@/lib/api"
 import { BootContext, useBootQuery } from "@/hooks/data"
 import { AppShell } from "@/components/layout/AppShell"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -10,6 +14,7 @@ import { PageAccess } from "@/pages/PageAccess"
 
 export default function App() {
   const { data, error } = useBootQuery()
+  useEffect(() => onServerMessages(showServerMessages), [])
 
   if (error) {
     return (
@@ -34,6 +39,7 @@ export default function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      <DialogHost />
       <Toaster theme="system" position="bottom-right" richColors />
     </BootContext.Provider>
   )

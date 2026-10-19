@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Download, Filter, Layers, List, Plus, Search, X } from "lucide-react"
 import { call } from "@/lib/api"
@@ -23,6 +23,7 @@ export function ListPage() {
   const { route = "" } = useParams()
   const cfg = useBoot().doctypes.find((d) => d.route === route)
   if (!cfg || !cfg.perms.read) return <div className="py-20 text-center text-muted-foreground">Page not found or not permitted.</div>
+  if (cfg.is_single) return <Navigate to={`/${cfg.route}/${encodeURIComponent(cfg.doctype)}`} replace />
   return <DocList key={route} cfg={cfg} />
 }
 

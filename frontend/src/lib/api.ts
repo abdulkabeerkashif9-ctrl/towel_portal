@@ -46,8 +46,20 @@ async function csrfToken(): Promise<string> {
   return csrfPromise
 }
 
+type MessageSink = (raw: string) => void
+let messageSink: MessageSink | null = null
+/** Registers where `_server_messages` (server-side msgprint on successful calls) are shown. */
+export function onServerMessages(sink: MessageSink) {
+  messageSink = sink
+}
+
 /** Call any whitelisted Frappe method (full dotted path, or a portal API name). */
 export async function call<T = any>(method: string, args: Record<string, unknown> = {}): Promise<T> {
+  return (await callRaw(method, args)).message as T
+}
+
+/** Like `call` but returns the whole response body (`message`, `docs`, ...). */
+export async function callRaw(method: string, args: Record<string, unknown> = {}): Promise<{ message?: any; docs?: any[]; [k: string]: any }> {
   const path = method.includes(".") ? method : API + method
   const res = await fetch(`/api/method/${path}`, {
     method: "POST",
@@ -61,5 +73,6 @@ export async function call<T = any>(method: string, args: Record<string, unknown
     throw new ApiError("Session expired", res.status)
   }
   if (!res.ok) throw new ApiError(serverMessage(body, res.statusText || "Request failed"), res.status)
-  return body.message as T
+  if (body._server_messages && messageSink) messageSink(body._server_messages)
+  return body
 }

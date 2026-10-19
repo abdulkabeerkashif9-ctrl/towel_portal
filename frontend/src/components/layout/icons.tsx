@@ -1,4 +1,4 @@
-import { Banknote, BookOpen, Boxes, FileText, Receipt, ShoppingCart, Truck, type LucideIcon } from "lucide-react"
+import { Banknote, BookOpen, Boxes, ClipboardList, Database, FileText, Package, Receipt, Settings, ShoppingCart, Truck, Users, type LucideIcon } from "lucide-react"
 
 const map: Record<string, LucideIcon> = {
   receipt: Receipt,
@@ -7,6 +7,12 @@ const map: Record<string, LucideIcon> = {
   boxes: Boxes,
   banknote: Banknote,
   "book-open": BookOpen,
+  "clipboard-list": ClipboardList,
+  package: Package,
+  users: Users,
+  settings: Settings,
+  database: Database,
+  "file-text": FileText,
 }
 
 export function DoctypeIcon({ name, className }: { name: string; className?: string }) {
