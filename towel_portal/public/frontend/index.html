@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/assets/towel_portal/frontend/logo.svg" />
+    <title>Towel Portal</title>
+    <script>
+      window.csrf_token = "{{ csrf_token }}"
+      try { if (localStorage.getItem("portal-theme") === "light") document.documentElement.classList.remove("dark") } catch (e) {}
+    </script>
+    <script type="module" crossorigin src="/assets/towel_portal/frontend/assets/index-Bad2vmPF.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/towel_portal/frontend/assets/index-Bwslign5.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

@@ -1,0 +1,18 @@
+include MANIFEST.in
+include requirements.txt
+include *.json
+include *.md
+include *.py
+include *.txt
+recursive-include towel_portal *.css
+recursive-include towel_portal *.csv
+recursive-include towel_portal *.html
+recursive-include towel_portal *.ico
+recursive-include towel_portal *.js
+recursive-include towel_portal *.json
+recursive-include towel_portal *.md
+recursive-include towel_portal *.png
+recursive-include towel_portal *.py
+recursive-include towel_portal *.svg
+recursive-include towel_portal *.txt
+recursive-exclude towel_portal *.pyc
