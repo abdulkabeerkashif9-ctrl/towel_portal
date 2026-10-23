@@ -161,7 +161,10 @@ def _client_scripts(doctypes):
 		for app in PORTAL_APPS:
 			if app not in frappe.get_installed_apps():
 				continue
-			for rel in frappe.get_hooks("doctype_js", app_name=app).get(doctype, []):
+			# get_hooks returns a list (not a dict) when an app defines no such hook
+			hooks = frappe.get_hooks("doctype_js", default={}, app_name=app)
+			files = hooks.get(doctype, []) if isinstance(hooks, dict) else []
+			for rel in [files] if isinstance(files, str) else files:
 				code = _read(frappe.get_app_path(app, *rel.strip("/").split("/")))
 				if code.strip():
 					scripts.append({"doctype": doctype, "label": f"{app}/{rel}", "code": code})

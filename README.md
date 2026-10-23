@@ -1,4 +1,4 @@
-# Towel Portal
+# Al Wadaq ERP
 
 A modern React + shadcn/ui front end for ERPNext. It runs next to Desk (`/app`) as a separate Frappe app and
 talks to ERPNext through a small whitelisted API, so permissions, workflows, stock and accounts logic all stay in

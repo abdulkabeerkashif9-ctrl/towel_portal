@@ -1,6 +1,6 @@
 app_name = "towel_portal"
-app_title = "Towel Portal"
-app_publisher = "Towel Portal"
+app_title = "Al Wadaq ERP"
+app_publisher = "Al Wadaq"
 app_description = "Custom operations portal UI for ERPNext"
 app_email = "ghazimemon92@gmail.com"
 app_license = "mit"
@@ -17,7 +17,7 @@ add_to_apps_screen = [
 	{
 		"name": "towel_portal",
 		"logo": "/assets/towel_portal/frontend/logo.svg",
-		"title": "Towel Portal",
+		"title": "Al Wadaq ERP",
 		"route": "/portal",
 	}
 ]

@@ -86,7 +86,7 @@ const recalc = (doc) => {
 
 const methods = {
   get_csrf_token: () => "mock",
-  get_boot: () => ({ brand: { title: "Towel Production", subtitle: "Operations Portal" }, sections: ["Selling", "Buying", "Stock", "Accounting"], currency: "PKR", roles: ["System Manager", "Accounts User"], user: { name: "Administrator", full_name: "Administrator", email: "admin@example.com", image: null, is_desk_user: true }, doctypes: Object.entries(cfgs).map(([dt, c]) => ({ doctype: dt, ...c, is_submittable: 1, perms: dt === "Journal Entry" ? { ...allPerms, delete: false } : allPerms })) }),
+  get_boot: () => ({ brand: { title: "Al Wadaq ERP", subtitle: "Operations Portal" }, sections: ["Selling", "Buying", "Stock", "Accounting"], currency: "PKR", roles: ["System Manager", "Accounts User"], user: { name: "Administrator", full_name: "Administrator", email: "admin@example.com", image: null, is_desk_user: true }, doctypes: Object.entries(cfgs).map(([dt, c]) => ({ doctype: dt, ...c, is_submittable: 1, perms: dt === "Journal Entry" ? { ...allPerms, delete: false } : allPerms })) }),
   get_doctype_meta: ({ doctype }) => ({ config: { doctype, ...cfgs[doctype] }, meta: { name: doctype, title_field: metas[doctype].title_field, is_submittable: 1, istable: 0, fields: metas[doctype].fields }, children: { [`${doctype} Item`]: { name: `${doctype} Item`, istable: 1, is_submittable: 0, title_field: null, fields: childFields }, "Sales Invoice Item": { name: "Sales Invoice Item", istable: 1, is_submittable: 0, title_field: null, fields: childFields } }, perms: allPerms }),
   get_list: ({ doctype, search, party, docstatus, from_date, to_date, order_by, page = 1, page_size = 20 }) => {
     const c = cfgs[doctype]

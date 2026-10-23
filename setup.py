@@ -10,7 +10,7 @@ setup(
 	name="towel_portal",
 	version=version,
 	description="Custom operations portal UI for ERPNext",
-	author="Towel Portal",
+	author="Al Wadaq",
 	author_email="ghazimemon92@gmail.com",
 	packages=find_packages(),
 	zip_safe=False,

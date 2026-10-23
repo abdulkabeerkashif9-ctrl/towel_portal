@@ -6,7 +6,7 @@ Add an entry here (and a route is created automatically) to expose another
 doctype.
 """
 
-BRAND = {"title": "Towel Production", "subtitle": "Operations Portal"}
+BRAND = {"title": "Al Wadaq ERP", "subtitle": "Operations Portal"}
 
 # Custom apps whose doctypes are discovered automatically (see portal_registry.py) and whose
 # Desk client scripts (doctype .js files, `doctype_js` hooks) are run inside the portal forms.
