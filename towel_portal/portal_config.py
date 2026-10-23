@@ -10,7 +10,7 @@ BRAND = {"title": "Towel Production", "subtitle": "Operations Portal"}
 
 # Custom apps whose doctypes are discovered automatically (see portal_registry.py) and whose
 # Desk client scripts (doctype .js files, `doctype_js` hooks) are run inside the portal forms.
-PORTAL_APPS = ["emadi_v3", "garments_app_v3", "mjfsd_v3"]
+PORTAL_APPS = ["emadi_v3", "garments_app_v3", "mjfsd_v3", "alwadaq"]
 
 # Sidebar label per module of those apps, and the icon used for it
 MODULE_SECTIONS = {
@@ -19,6 +19,7 @@ MODULE_SECTIONS = {
 	"Garments App": "Garments",
 	"Loom Production": "Loom Production",
 	"MJFSD": "MJFSD Weaving",
+	"Alwadaq": "Alwadaq Bales",
 }
 MASTERS_SECTION = "Masters"
 SETTINGS_SECTION = "Settings"
@@ -29,6 +30,7 @@ SECTIONS = [
 	"Buying",
 	"Stock",
 	"Accounting",
+	"Alwadaq Bales",
 	"Weaving (Emadi)",
 	"MJFSD Weaving",
 	"Loom Production",
@@ -47,6 +49,29 @@ def _party(field, doctype, label):
 # Hand-tuned presentation for discovered doctypes. Anything not listed here is configured
 # automatically from its DocType meta. Keys are merged over the automatic config.
 OVERRIDES = {
+	# --- Alwadaq: bale production
+	"Daily Issuance": {
+		"list_fields": ["name", "date", "warehouse", "total_bales_issued", "total_weight_of_bales", "total_amount"],
+		"report": {"group_by": "warehouse", "sum": ["total_bales_issued", "total_weight_of_bales", "total_amount"]},
+		"dashboard": True,
+	},
+	"Daily Production": {
+		"list_fields": ["name", "date", "custom_customer", "total_qty", "total_completed_qty", "custom_waste_weight"],
+		"title_field": "custom_customer",
+		"report": {"group_by": "custom_customer", "sum": ["total_qty", "total_completed_qty", "custom_waste_weight"]},
+		"dashboard": True,
+		**_party("custom_customer", "Customer", "All customers"),
+	},
+	"Daily Receipt": {
+		"list_fields": ["name", "date", "custom_bale", "warehouse", "total_produced_qty", "total_produced_weight", "total_balance_weight"],
+		"report": {"group_by": "custom_bale", "sum": ["total_produced_qty", "total_produced_weight"]},
+		"dashboard": True,
+	},
+	"Master Bale Production": {
+		"list_fields": ["name", "date", "sales_order", "mixed_bale", "total_qty", "total_completed_qty", "custom_total_weight_in_kgs_finished"],
+		"report": {"group_by": "sales_order", "sum": ["total_qty", "total_completed_qty", "custom_total_weight_in_kgs_finished"]},
+		"dashboard": True,
+	},
 	# --- Emadi: weaving
 	"Weaving Contract": {
 		"list_fields": ["name", "weaver", "date", "type", "construction", "fabric_qty", "delivery_date", "custom_status"],
@@ -352,5 +377,37 @@ PORTAL_DOCTYPES = {
 		"list_fields": ["name", "supplier_name", "supplier_group", "country", "mobile_no"],
 		"search_fields": ["supplier_name", "mobile_no"],
 		"report": {"group_by": "supplier_group", "sum": []},
+	},
+	"Purchase Receipt": {
+		"route": "purchase-receipt",
+		"plural": "Purchase Receipts",
+		"icon": "package",
+		"section": "Buying",
+		"date_field": "posting_date",
+		"party_field": "supplier",
+		"party_doctype": "Supplier",
+		"party_label": "All suppliers",
+		"title_field": "supplier_name",
+		"status_field": "status",
+		"list_fields": ["name", "supplier_name", "posting_date", "total_qty", "total_net_weight", "custom_total_serial_count", "grand_total", "status"],
+		"search_fields": ["supplier", "supplier_name", "supplier_delivery_note"],
+		"report": {"group_by": "supplier", "sum": ["total_qty", "total_net_weight", "grand_total"]},
+		"kpi": {"amount_field": "grand_total"},
+		"recalculate": True,
+		"item_table": "items",
+		"item_details": "erpnext",
+		"party_details": {"party_type": "Supplier"},
+		"taxes": _BUYING_TAXES,
+	},
+	"Serial No": {
+		"route": "serial-no",
+		"plural": "Serial Nos",
+		"icon": "package",
+		"section": "Masters",
+		"title_field": "item_code",
+		"status_field": "status",
+		"list_fields": ["name", "item_code", "warehouse", "status", "custom_weight", "custom_is_master_bale"],
+		"search_fields": ["item_code", "warehouse", "batch_no"],
+		"report": {"group_by": "item_code", "sum": ["custom_weight"]},
 	},
 }

@@ -28,6 +28,7 @@ export interface MetaDict {
   title_field: string | null
   is_submittable: 0 | 1
   istable: 0 | 1
+  default_print_format?: string | null
   fields: DocField[]
 }
 

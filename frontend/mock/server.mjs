@@ -118,7 +118,7 @@ const methods = {
 
 if (process.env.PORTAL_APP_ROOTS) {
   const { registerApps } = await import("./apps.mjs")
-  console.log(`loaded ${registerApps({ methods, cfgs, db, allPerms })} doctypes from ${process.env.PORTAL_APP_ROOTS}`)
+  console.log(`loaded ${registerApps({ methods, cfgs, db, allPerms, metas })} doctypes from ${process.env.PORTAL_APP_ROOTS}`)
 }
 
 http.createServer((req, res) => {

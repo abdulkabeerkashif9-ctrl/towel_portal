@@ -16,6 +16,8 @@ interface Props {
   roles: string[]
   canWrite: boolean
   errors: Set<string>
+  /** Fields rendered elsewhere (designed forms); the generic layout skips them */
+  exclude?: Set<string>
 }
 
 export function isReadOnlyField(df: DocField, doc: Row, canWrite: boolean, isNew: boolean, roles: string[]) {
@@ -27,7 +29,7 @@ export function isReadOnlyField(df: DocField, doc: Row, canWrite: boolean, isNew
 }
 
 /** Frappe labels may contain HTML (for example coloured spans) */
-function Label({ text }: { text: string | null }) {
+export function Label({ text }: { text: string | null }) {
   if (!text) return null
   return text.includes("<") ? <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(text) }} /> : <>{text}</>
 }
@@ -54,7 +56,7 @@ export function FormLayout(props: Props) {
   )
 }
 
-function SectionCard({ section, bundle, rt, view, roles, canWrite, errors, doc }: Props & { section: Section; doc: Row }) {
+function SectionCard({ section, bundle, rt, view, roles, canWrite, errors, doc, exclude }: Props & { section: Section; doc: Row }) {
   const [open, setOpen] = useState(!section.collapsible)
   const secDf = section.fieldname ? effectiveDf(view.overrides, { fieldname: section.fieldname, hidden: section.hidden ? 1 : 0 } as DocField) : null
   if (secDf?.hidden || !evalExpr(section.depends_on, { doc, roles }, true)) return null
@@ -63,7 +65,7 @@ function SectionCard({ section, bundle, rt, view, roles, canWrite, errors, doc }
   const visible = section.columns.map((c) =>
     c.filter((df) => {
       const eff = effectiveDf(view.overrides, df)
-      return !eff.hidden && evalExpr(eff.depends_on, { doc, roles }, true)
+      return !exclude?.has(df.fieldname) && !eff.hidden && evalExpr(eff.depends_on, { doc, roles }, true)
     }),
   )
   // Tables span the full width of the card, whichever column they were declared in
@@ -101,7 +103,12 @@ function SectionCard({ section, bundle, rt, view, roles, canWrite, errors, doc }
   )
 }
 
-function FieldRow({ sectionLabel, df: base, bundle, rt, view, roles, canWrite, invalid }: { sectionLabel: string | null; df: DocField; bundle: MetaBundle; rt: FormRuntime; view: View; roles: string[]; canWrite: boolean; invalid: boolean }) {
+export function isVisible(df: DocField, view: View, roles: string[]) {
+  const eff = effectiveDf(view.overrides, df)
+  return !eff.hidden && evalExpr(eff.depends_on, { doc: view.doc, roles }, true)
+}
+
+export function FieldRow({ sectionLabel, df: base, bundle, rt, view, roles, canWrite, invalid }: { sectionLabel: string | null; df: DocField; bundle: MetaBundle; rt: FormRuntime; view: View; roles: string[]; canWrite: boolean; invalid: boolean }) {
   const df = effectiveDf(view.overrides, base)
   const doc = view.doc
   const editable = canWrite && !view.readOnlyAll
@@ -116,6 +123,10 @@ function FieldRow({ sectionLabel, df: base, bundle, rt, view, roles, canWrite, i
         <ChildTable df={df} meta={child} rt={rt} view={view} roles={roles} readOnly={readOnly && !(doc.docstatus === 1 && df.allow_on_submit)} />
       </div>
     )
+  }
+
+  if (df.fieldtype === "Button") {
+    return <FieldInput df={df} value={null} doc={doc} onChange={() => {}} onAction={() => void rt.trigger(df.fieldname)} />
   }
 
   const required = Boolean(df.reqd) || evalExpr(df.mandatory_depends_on, { doc, roles }, false)

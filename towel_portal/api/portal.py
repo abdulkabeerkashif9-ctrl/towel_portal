@@ -90,6 +90,7 @@ def _meta_dict(doctype):
 		"title_field": meta.title_field,
 		"is_submittable": cint(meta.is_submittable),
 		"istable": cint(meta.istable),
+		"default_print_format": meta.default_print_format,
 		"fields": [{key: df.get(key) for key in FIELD_KEYS} for df in meta.fields],
 	}
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowLeft, ChevronDown, ExternalLink, Save, Send, Trash2, XCircle } from "lucide-react"
+import { ArrowLeft, ChevronDown, ExternalLink, LayoutTemplate, Printer, Save, Send, Trash2, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import { attachScripts, clearRouteOptions, pendingDocs, peekRouteOptions } from "@/compat/frappe"
 import { FormRuntime, isNewName, type CustomButton, type Host, type View } from "@/compat/runtime"
@@ -10,6 +10,8 @@ import { DOCSTATUS_LABEL, toneFor } from "@/lib/format"
 import type { MetaBundle, Perms, PortalDoctype, Row } from "@/lib/types"
 import { useBoot, useMeta } from "@/hooks/data"
 import { ConfirmDialog } from "@/components/ConfirmDialog"
+import { DesignedForm } from "@/designs/DesignedForm"
+import { designs } from "@/designs/specs"
 import { FormLayout } from "@/components/form/FormLayout"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -124,6 +126,15 @@ function DocEditor({ cfg, bundle, initial, initialValues, perms, reload }: { cfg
   const [errors, setErrors] = useState<{ fields: Set<string>; at: number }>({ fields: new Set(), at: 0 })
   const [busy, setBusy] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<null | "submit" | "cancel" | "delete">(null)
+  const design = designs[cfg.doctype]
+  const storeKey = `portal-design:${cfg.doctype}`
+  const [designed, setDesigned] = useState(() => {
+    try { return localStorage.getItem(storeKey) !== "0" } catch { return true }
+  })
+  const toggleDesign = () => {
+    setDesigned(!designed)
+    try { localStorage.setItem(storeKey, designed ? "0" : "1") } catch { /* private mode */ }
+  }
   const shownErrors = errors.at === view.uiEdits ? errors.fields : new Set<string>()
 
   const invalidate = () => {
@@ -195,7 +206,7 @@ function DocEditor({ cfg, bundle, initial, initialValues, perms, reload }: { cfg
 
   return (
     <div className="space-y-5 pb-10">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="sticky top-0 z-20 -mx-4 -mt-6 flex flex-wrap items-center gap-3 border-b border-border bg-background/85 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
         {!isSingle && <Button asChild variant="ghost" size="icon-sm"><Link to={`/${cfg.route}`} aria-label="Back"><ArrowLeft /></Link></Button>}
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
@@ -203,10 +214,16 @@ function DocEditor({ cfg, bundle, initial, initialValues, perms, reload }: { cfg
             {!isNew && !isSingle && <Badge tone={toneFor(statusText)}>{statusText}</Badge>}
             {view.dirty && !(isNew && !canWrite) && <Badge tone="warning">Not saved</Badge>}
           </div>
-          {heading && <p className="text-sm text-muted-foreground">{heading}</p>}
+          {(designed && design?.subtitle?.(doc)) || heading ? <p className="truncate text-sm text-muted-foreground">{(designed && design?.subtitle?.(doc)) || heading}</p> : null}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <CustomButtons rt={rt} view={view} />
+          {design && <Button variant="ghost" size="sm" onClick={toggleDesign} title="Switch between the designed layout and the standard field layout"><LayoutTemplate /> {designed ? "Standard layout" : "Designed layout"}</Button>}
+          {!isNew && !isSingle && (
+            <Button asChild variant="ghost" size="sm">
+              <a href={`/printview?doctype=${encodeURIComponent(cfg.doctype)}&name=${encodeURIComponent(doc.name)}${bundle.meta.default_print_format ? `&format=${encodeURIComponent(bundle.meta.default_print_format)}` : ""}&trigger_print=1&no_letterhead=1`} target="_blank" rel="noreferrer"><Printer /> Print</a>
+            </Button>
+          )}
           {!isNew && <Button asChild variant="ghost" size="sm"><a href={`/app/${deskSlug(cfg.doctype)}/${encodeURIComponent(isSingle ? cfg.doctype : doc.name)}`}><ExternalLink /> Desk</a></Button>}
           {docstatus === 0 && !isNew && !isSingle && perms.delete && <Button variant="outline" size="sm" disabled={!!busy} onClick={() => setConfirm("delete")}><Trash2 /> Delete</Button>}
           {docstatus === 1 && perms.cancel && <Button variant="outline" size="sm" disabled={!!busy} onClick={() => setConfirm("cancel")}><XCircle /> Cancel</Button>}
@@ -223,7 +240,11 @@ function DocEditor({ cfg, bundle, initial, initialValues, perms, reload }: { cfg
         <div key={n} className={`rounded-lg border px-4 py-2.5 text-sm ${i.color === "red" ? "border-destructive/40 bg-destructive/10" : i.color === "orange" || i.color === "yellow" ? "border-warning/40 bg-warning/10" : i.color === "green" ? "border-success/40 bg-success/10" : "border-primary/40 bg-primary/10"}`}>{i.message}</div>
       ))}
 
-      <FormLayout bundle={bundle} rt={rt} view={view} roles={boot.roles} canWrite={Boolean(canWrite)} errors={shownErrors} />
+      {designed && design ? (
+        <DesignedForm design={design} bundle={bundle} rt={rt} view={view} roles={boot.roles} canWrite={Boolean(canWrite)} errors={shownErrors} />
+      ) : (
+        <FormLayout bundle={bundle} rt={rt} view={view} roles={boot.roles} canWrite={Boolean(canWrite)} errors={shownErrors} />
+      )}
 
       <ConfirmDialog open={confirm === "submit"} title={`Submit ${doc.name ?? cfg.doctype}?`} description="Once submitted the document can’t be edited, only cancelled." confirmLabel="Submit" onClose={() => setConfirm(null)} onConfirm={() => void act("Submit")} />
       <ConfirmDialog open={confirm === "cancel"} title={`Cancel ${doc.name}?`} description="This reverses its ledger and stock entries." confirmLabel="Cancel document" destructive onClose={() => setConfirm(null)} onConfirm={() => void act("Cancel")} />

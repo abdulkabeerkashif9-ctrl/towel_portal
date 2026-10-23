@@ -6,7 +6,7 @@ ERPNext. **Open Desk** in the user menu links back to the standard UI.
 
 Pages (all under `/portal`): Dashboard, Sales/Purchase documents, Stock Entry, Payment/Journal Entry, Page Access,
 plus a page for every doctype in the custom apps listed in `PORTAL_APPS` (`emadi_v3`, `garments_app_v3`,
-`mjfsd_v3`): lists, report view and forms with the same behaviour as in Desk.
+`mjfsd_v3`, `alwadaq`): lists, report view and forms with the same behaviour as in Desk.
 
 ## Install
 
@@ -45,6 +45,22 @@ Open `https://<site>/portal`. The compiled front end is committed (`towel_portal
   `frappe.set_route`, `frappe.model.sync` + `open_mapped_doc`, `frappe.db.*`.
 - **Anything else is a no-op, not a crash.** Unsupported Desk APIs (dashboard banners, page menus ...) are ignored and
   logged at debug level in the browser console.
+
+## Designed forms
+
+Beyond the generic layout, key documents have a purpose-built design (`frontend/src/designs/specs.ts`):
+
+- **Alwadaq bales:** Daily Issuance, Daily Production, Daily Receipt and Master Bale Production, plus the standard
+  Purchase Receipt, Delivery Note, Purchase Invoice and Stock Entry as customised by Alwadaq.
+- **What a design adds:** a large **scan box** (a barcode scanner types the serial and presses Enter; the code is written
+  to the same field Desk uses, e.g. `scan_serial_no`, so the site's own Client Script handles it), KPI cards,
+  a **yield meter** on production forms, linked-document chips (Stock Entry etc.), ledger-style tables with a status
+  badge, row actions (Frappe *Button* fields such as *Cancel Issuance*) and a totals row, and a **Print** button that
+  opens the doctype's default print format (the DR Label / Shipping Label formats).
+- **Nothing is hidden.** Fields a design doesn't mention appear under **More details**, and the header's
+  *Standard layout* button switches any designed form back to the plain field layout (remembered per doctype).
+- **Add your own:** a design is a small declarative object (`fields`, `table`, `split`, `meter`, `links` blocks plus
+  `scan` and `stats`); add one to `specs.ts` and it applies to that doctype.
 
 ## Add or change a page
 

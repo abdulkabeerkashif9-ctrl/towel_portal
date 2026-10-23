@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import type { DocField, Row } from "@/lib/types"
+import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input, NativeSelect, Textarea } from "@/components/ui/input"
 import { LinkField } from "./LinkField"
@@ -7,7 +8,7 @@ import { LinkField } from "./LinkField"
 export const NUMERIC = ["Int", "Float", "Currency", "Percent"]
 export const TEXTAREA = ["Small Text", "Text", "Long Text", "Text Editor", "Markdown Editor", "HTML Editor", "Code"]
 export const TEXTLIKE = ["Data", "Phone", "Barcode", "Autocomplete", "Color", "Rating", "Duration", "Read Only", "Password"]
-export const INPUT_TYPES = [...NUMERIC, ...TEXTAREA, ...TEXTLIKE, "Select", "Link", "Dynamic Link", "Date", "Datetime", "Time", "Check"]
+export const INPUT_TYPES = [...NUMERIC, ...TEXTAREA, ...TEXTLIKE, "Select", "Link", "Dynamic Link", "Date", "Datetime", "Time", "Check", "Button"]
 
 interface Props {
   df: DocField
@@ -17,6 +18,8 @@ interface Props {
   disabled?: boolean
   compact?: boolean
   getQuery?: () => { filters?: unknown; query?: string } | undefined
+  /** Button fields: Frappe triggers the event named after the field */
+  onAction?: () => void
 }
 
 function NumberInput({ value, onChange, disabled, integer, className, name }: { value: number | null | undefined; onChange: (v: number | null) => void; disabled?: boolean; integer?: boolean; className?: string; name?: string }) {
@@ -44,10 +47,12 @@ function NumberInput({ value, onChange, disabled, integer, className, name }: { 
   )
 }
 
-export function FieldInput({ df, value, onChange, doc, disabled, compact, getQuery }: Props) {
+export function FieldInput({ df, value, onChange, doc, disabled, compact, getQuery, onAction }: Props) {
   const cls = compact ? "h-8 text-[13px]" : undefined
   const fn = df.fieldname
   switch (df.fieldtype) {
+    case "Button":
+      return <Button type="button" variant="outline" size="sm" onClick={onAction}>{(df.label ?? df.fieldname).replace(/<[^>]*>/g, "")}</Button>
     case "Check":
       return <Checkbox checked={Boolean(value)} disabled={disabled} onChange={(e) => onChange(e.target.checked ? 1 : 0)} />
     case "Int":

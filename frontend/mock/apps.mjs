@@ -52,7 +52,7 @@ export function loadApps(roots) {
 }
 
 const toField = (f) => ({ ...FIELD_DEFAULTS, ...f, fieldname: f.fieldname, fieldtype: f.fieldtype, in_list_view: f.in_list_view ?? 0 })
-const metaOf = (j) => ({ name: j.name, title_field: j.title_field ?? null, is_submittable: j.is_submittable ?? 0, istable: j.istable ?? 0, fields: (j.fields ?? []).map(toField) })
+const metaOf = (j) => ({ name: j.name, title_field: j.title_field ?? null, is_submittable: j.is_submittable ?? 0, istable: j.istable ?? 0, default_print_format: j.default_print_format ?? null, fields: (j.fields ?? []).map(toField) })
 
 function autoConfig(j) {
   const fields = metaOf(j).fields.filter((f) => !f.hidden)
@@ -63,20 +63,66 @@ function autoConfig(j) {
   const single = Boolean(j.issingle)
   return {
     route: slugOf(j.name), plural: plural(j.name), icon: single ? "settings" : j.is_submittable ? "file-text" : "database",
-    section: single ? "Settings" : j.is_submittable ? ({ Emadiv3: "Weaving (Emadi)", "Garments App": "Garments", "Loom Production": "Loom Production", MJFSD: "MJFSD Weaving" }[j.module] ?? j.module) : "Masters",
+    section: single ? "Settings" : j.is_submittable ? ({ Emadiv3: "Weaving (Emadi)", "Garments App": "Garments", "Loom Production": "Loom Production", MJFSD: "MJFSD Weaving", Alwadaq: "Alwadaq Bales" }[j.module] ?? j.module) : "Masters",
     title_field: j.title_field ?? null, list_fields: list, search_fields: [], is_single: single, ...(date ? { date_field: date.fieldname } : {}),
   }
 }
 
+const bale = (i, item, w) => ({ serial_no: `BL-${String(i).padStart(5, "0")}`, item_code: item, weight_per_bale: w, total_weight: w, qty: 1, rate: 310, amount: 310 * w })
+const rows = (doctype, list) => list.map((r, i) => ({ doctype, name: `${doctype.replace(/ /g, "-").toLowerCase()}-${i}`, idx: i + 1, ...r }))
 const SEEDS = {
+  "Daily Issuance": { date: "2026-10-19", company: "Alwadaq", warehouse: "Stores - ARHC", bale: "Big", stock_entry_reference: "MAT-STE-2026-00012", total_bales_issued: 5, total_weight_of_bales: 212.5, total_amount: 65875,
+    daily_issuance_item: rows("Daily Issuance Item", [bale(101, "Cotton Waste A", 45), bale(102, "Cotton Waste A", 45), bale(103, "Cotton Waste B", 40), { ...bale(104, "Cotton Waste B", 40), status: "Cancelled" }, { ...bale(105, "Cotton Waste C", 42.5), status: "Issued" }].map((r, i) => ({ ...r, status: r.status ?? "Issued", purchase_receipt_reference: "MAT-PRE-2026-0000" + (i + 1) }))) },
+  "Daily Production": { date: "2026-10-19", custom_customer: "Cotton Tex", custom_company: "Alwadaq", naming_series: "DP-.WW.-", stock_entry: "MAT-STE-2026-00013", total_qty: 4, total_amount: 52000, custom_total_weight_in_kgs_raw: 180, total_completed_qty: 3, total_finished_amount: 61000, custom_total_weight_in_kgs_finished: 162, custom_waste_weight: 18, custom_waste_item: "Waste Fibre",
+    daily_production_raw_material: rows("Daily Production Raw Materials", [bale(101, "Cotton Waste A", 45), bale(102, "Cotton Waste A", 45), bale(103, "Cotton Waste B", 45), bale(104, "Cotton Waste B", 45)].map((r) => ({ ...r, custom_weight_per_bale: r.weight_per_bale, warehouse: "Stores - ARHC" }))),
+    daily_production_finished_goods: rows("Daily Production Finished Goods", [{ item_code: "Recycled Bale 54kg", qty: 1, custom_weight_per_bale: 54, custom_serial_no: "FG-0001", custom_batch: "B1", rate: 380, amount: 380, warehouse: "Stores - ARHC" }, { item_code: "Recycled Bale 54kg", qty: 1, custom_weight_per_bale: 54, custom_serial_no: "FG-0002", custom_batch: "B1", rate: 380, amount: 380, warehouse: "Stores - ARHC" }, { item_code: "Recycled Bale 54kg", qty: 1, custom_weight_per_bale: 54, custom_serial_no: "FG-0003", custom_batch: "B1", rate: 380, amount: 380, warehouse: "Stores - ARHC" }]) },
+  "Daily Receipt": { date: "2026-10-19", custom_bale: "Big", company: "Alwadaq", warehouse: "Stores - ARHC", stock_entry_reference: "MAT-STE-2026-00014", total_produced_qty: 3, total_produced_weight: 162, total_balance_weight: 50.5, sales_order: "SAL-ORD-2026-00031",
+    daily_receipt_item: rows("Daily Receipt Item", [0, 1, 2].map((i) => ({ serial_no: `FG-000${i + 1}`, item_code: "Recycled Bale 54kg", qty: 1, weight_per_bale: 54, total_weight: 54, rate: 380, amount: 380, print: i < 2 ? 1 : 0, status: "Produced", sales_order: "SAL-ORD-2026-00031" }))),
+    daily_receipt_issuance_ref: rows("Daily Receipt Issuance Reference", [{ daily_issuance: "DI-2026-10-19-01", issuance_total_weight: 212.5, available_balance: 212.5, weight_taken: 162, weight_after_current_issuance: 50.5, issuance_total_amount: 65875 }]) },
+  "Master Bale Production": { date: "2026-10-19", sales_order: "SAL-ORD-2026-00031", custom_company: "Alwadaq", mixed_bale: 0, naming_series: "MBP-26-", stock_entry: "MAT-STE-2026-00015", total_qty: 3, total_completed_qty: 1, total_amount: 1140, total_finished_amount: 1200, custom_total_weight_in_kgs_raw: 162, custom_total_weight_in_kgs_finished: 160,
+    master_bale_raw_material: rows("Master Bale Raw Materials", [1, 2, 3].map((i) => ({ serial_no: `FG-000${i}`, item_code: "Recycled Bale 54kg", bale_no: `B${i}`, custom_weight_per_bale: 54, qty: 1, rate: 380, amount: 380, warehouse: "Stores - ARHC" }))),
+    master_bale_finished_goods: rows("Master Bale Finished Goods", [{ custom_serial_no: "MB-0001", item_code: "Master Bale 160kg", bale_no: "M1", bundle_no: 1, custom_weight_per_bale: 160, qty: 1, rate: 1200, amount: 1200, warehouse: "Stores - ARHC" }]) },
   "Weaving Contract": { type: "External", custom_status: "Open", construction: "FAB-30x60", weaver: "Cotton Tex", fabric_qty: 500, bom_items: [
     { doctype: "BOM Items", name: "row1", yarn_count: "YARN-20S", yarn_qty: 120, yarn_issued: 20, consumption: 0.12, idx: 1 },
     { doctype: "BOM Items", name: "row2", yarn_count: "YARN-16S", yarn_qty: 200, yarn_issued: 0, consumption: 0.2, idx: 2 } ] },
 }
 
-export function registerApps({ methods, cfgs, db, allPerms }) {
+/** Custom Fields / Property Setters shipped in <app>/custom/*.json, applied like `bench migrate` does */
+function applyCustomizations(roots, docs, metas) {
+  const standardChildren = {}
+  for (const root of roots) {
+    for (const file of walk(root)) {
+      if (!/[\\/]custom[\\/][^\\/]+\.json$/.test(file)) continue
+      const json = JSON.parse(fs.readFileSync(file, "utf8"))
+      for (const cf of json.custom_fields ?? []) {
+        const field = toField({ ...cf, fieldname: cf.fieldname, fieldtype: cf.fieldtype })
+        const target = docs[cf.dt]?.json ?? metas[cf.dt]
+        if (target) {
+          const list = target.fields ?? (target.fields = [])
+          const at = list.findIndex((f) => f.fieldname === cf.insert_after)
+          list.splice(at >= 0 ? at + 1 : list.length, 0, field)
+        } else (standardChildren[cf.dt] ??= []).push(field)
+      }
+      for (const ps of json.property_setters ?? []) {
+        if (ps.property === "default_print_format") {
+          const target = docs[ps.doc_type]?.json ?? metas[ps.doc_type]
+          if (target) target.default_print_format = ps.value
+        }
+      }
+    }
+  }
+  return standardChildren
+}
+
+export function registerApps({ methods, cfgs, db, allPerms, metas }) {
   const roots = process.env.PORTAL_APP_ROOTS.split(path.delimiter).filter(Boolean)
   const docs = loadApps(roots)
+  // Purchase Receipt / Serial No exist in ERPNext but not in the basic mock
+  metas["Purchase Receipt"] ??= { title_field: "supplier_name", is_submittable: 1, fields: structuredClone(metas["Purchase Invoice"].fields) }
+  cfgs["Purchase Receipt"] ??= { ...cfgs["Purchase Invoice"], route: "purchase-receipt", plural: "Purchase Receipts", icon: "package", list_fields: ["name", "supplier_name", "posting_date", "total_qty", "grand_total", "status"] }
+  db["Purchase Receipt"] ??= structuredClone(db["Purchase Invoice"]).map((r) => ({ ...r, doctype: "Purchase Receipt", name: r.name.replace("PINV", "PREC") }))
+  for (const dt of ["Delivery Note", "Purchase Invoice", "Stock Entry", "Purchase Receipt"]) metas[dt].fields = structuredClone(metas[dt].fields)
+  const customChildren = applyCustomizations(roots, docs, metas)
   const hooks = docs.__hooks ?? {}
   delete docs.__hooks
 
@@ -91,7 +137,7 @@ export function registerApps({ methods, cfgs, db, allPerms }) {
   const baseBoot = methods.get_boot
   methods.get_boot = (a) => {
     const boot = baseBoot(a)
-    boot.sections = [...new Set([...boot.sections, "Weaving (Emadi)", "MJFSD Weaving", "Loom Production", "Garments", "Masters", "Settings"])]
+    boot.sections = [...new Set([...boot.sections, "Alwadaq Bales", "Weaving (Emadi)", "MJFSD Weaving", "Loom Production", "Garments", "Masters", "Settings"])]
     boot.defaults = { company: "Towel Production", currency: "PKR", fiscal_year: "2026" }
     boot.doctypes = [...new Map([...boot.doctypes, ...mains.filter((d) => !boot.doctypes.some((x) => x.doctype === d.json.name)).map((d) => ({ doctype: d.json.name, ...cfgs[d.json.name], is_submittable: d.json.is_submittable ?? 0, perms: allPerms }))].map((x) => [x.doctype, x])).values()]
     return boot
@@ -100,7 +146,14 @@ export function registerApps({ methods, cfgs, db, allPerms }) {
   const baseMeta = methods.get_doctype_meta
   methods.get_doctype_meta = (a) => {
     const d = docs[a.doctype]
-    if (!d) return { ...baseMeta(a), scripts: [] }
+    if (!d) {
+      const out = { ...baseMeta(a), scripts: [] }
+      for (const [name, child] of Object.entries(out.children)) {
+        const extra = customChildren[`${a.doctype} Item`] ?? []
+        if (name === `${a.doctype} Item`) out.children[name] = { ...child, fields: [...child.fields, ...extra] }
+      }
+      return out
+    }
     const meta = metaOf(d.json)
     const children = {}
     for (const f of meta.fields) if (f.fieldtype === "Table" && docs[f.options]) children[f.options] = metaOf(docs[f.options].json)
