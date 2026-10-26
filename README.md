@@ -50,6 +50,9 @@ Open `https://<site>/portal`. The compiled front end is committed (`towel_portal
 
 Beyond the generic layout, key documents have a purpose-built design (`frontend/src/designs/specs.ts`):
 
+- **Purchase Gate Pass** (the Purchase Receipt doctype under another name): date, supplier and warehouse (company defaults
+  to the user's), and a table of item, qty, weight per bale (fetched from the item's *Weight per Bale*), total weight
+  and serial list, with UOM defaulting to Bale. It is a *minimal* design: nothing else is shown.
 - **Alwadaq bales:** Daily Issuance, Daily Production, Daily Receipt and Master Bale Production, plus the standard
   Purchase Receipt, Delivery Note, Purchase Invoice and Stock Entry as customised by Alwadaq.
 - **What a design adds:** a large **scan box** (a barcode scanner types the serial and presses Enter; the code is written

@@ -23,6 +23,8 @@ interface Props {
   bare?: boolean
   /** Hide the footer "Add row" button when the surrounding card already has one */
   hideAdd?: boolean
+  /** Heading overrides by fieldname */
+  labels?: Record<string, string>
 }
 
 /** Narrow, content-sized columns so wide ledgers fit without sideways scrolling where possible */
@@ -36,7 +38,7 @@ function minWidth(c: DocField) {
   return Math.max(c.columns || 2, 2) * 46
 }
 
-export function ChildTable({ df, meta, rt, view, roles, readOnly, columns, totals, bare, hideAdd }: Props) {
+export function ChildTable({ df, meta, rt, view, roles, readOnly, columns, totals, bare, hideAdd, labels }: Props) {
   const table = df.fieldname
   const doc = view.doc
   const rows: Row[] = doc[table] ?? []
@@ -59,7 +61,7 @@ export function ChildTable({ df, meta, rt, view, roles, readOnly, columns, total
               <th className="w-10 px-2 py-2 text-center text-[11px] font-medium text-muted-foreground">#</th>
               {cols.map((c) => (
                 <th key={c.fieldname} style={{ minWidth: minWidth(c) }} className={cn("px-2 py-2 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground", NUMERIC.includes(c.fieldtype) && "text-right")}>
-                  {c.fieldtype === "Button" ? "" : (c.label ?? "").replace(/<[^>]*>/g, "")}{c.reqd && !readOnly ? <span className="text-destructive"> *</span> : null}
+                  {c.fieldtype === "Button" ? "" : (labels?.[c.fieldname] ?? c.label ?? "").replace(/<[^>]*>/g, "")}{c.reqd && !readOnly ? <span className="text-destructive"> *</span> : null}
                 </th>
               ))}
               {!readOnly && <th className="w-10" />}
@@ -71,13 +73,13 @@ export function ChildTable({ df, meta, rt, view, roles, readOnly, columns, total
             )}
             {rows.map((row, i) => (
               <tr key={row.name ?? `new-${i}`} className="border-b border-border last:border-0 hover:bg-accent/30">
-                <td className="px-2 py-1.5 text-center text-xs text-muted-foreground">{i + 1}</td>
+                <td className="px-2 py-1 text-center text-xs text-muted-foreground">{i + 1}</td>
                 {cols.map((c) => {
                   const ctx = { doc: row, parent: doc, roles }
                   const ro = readOnly || Boolean(c.read_only) || evalExpr(c.read_only_depends_on, ctx, false)
                   const numeric = NUMERIC.includes(c.fieldtype)
                   return (
-                    <td key={c.fieldname} className={cn("px-1.5 py-1.5", ro && c.fieldtype !== "Button" && "px-2.5", numeric && ro && "text-right", c.fieldtype === "Check" && "text-center")}>
+                    <td key={c.fieldname} className={cn("px-1 py-1", ro && c.fieldtype !== "Button" && "px-2.5", numeric && ro && "text-right", c.fieldtype === "Check" && "text-center")}>
                       {c.fieldtype === "Button" ? (
                         <FieldInput compact df={c} value={null} doc={row} onChange={() => {}} onAction={() => void rt.trigger(c.fieldname, row.doctype, row.name)} />
                       ) : ro ? (

@@ -35,7 +35,7 @@ export function LinkField({ doctype, value, onChange, disabled, placeholder, fil
   }, [text, value])
 
   const q = open ? (getQuery?.() ?? (filters ? { filters } : undefined)) : undefined
-  const { data = [], isFetching } = useQuery({
+  const { data = [], isFetching, error } = useQuery({
     queryKey: ["link", doctype, txt, q],
     queryFn: () => call<{ value: string; description?: string }[]>("search_link", { doctype, txt, filters: q?.filters, query: q?.query }),
     enabled: open,
@@ -74,7 +74,7 @@ export function LinkField({ doctype, value, onChange, disabled, placeholder, fil
       </PopoverAnchor>
       <PopoverContent className="w-(--radix-popover-trigger-width) min-w-56 p-1" onOpenAutoFocus={(e) => e.preventDefault()} onInteractOutside={(e) => { if (anchorRef.current?.contains(e.target as Node)) e.preventDefault() }}>
         <div className="max-h-64 overflow-y-auto">
-          {data.length === 0 && <div className="px-3 py-3 text-center text-xs text-muted-foreground">{isFetching ? "Searching…" : "No results"}</div>}
+          {error ? <div className="px-3 py-3 text-xs text-destructive">Search failed: {(error as Error).message}</div> : data.length === 0 && <div className="px-3 py-3 text-center text-xs text-muted-foreground">{isFetching ? "Searching…" : "No results"}</div>}
           {data.map((r) => (
             <button key={r.value} type="button" onMouseDown={(e) => { e.preventDefault(); pick(r.value) }}
               className={cn("block w-full cursor-pointer rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-accent", r.value === value && "bg-accent")}>

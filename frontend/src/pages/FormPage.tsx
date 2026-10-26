@@ -51,7 +51,7 @@ function DocLoader({ cfg, name }: { cfg: PortalDoctype; name: string }) {
   if (error) {
     return (
       <div className="mx-auto max-w-md py-20 text-center">
-        <p className="font-medium">Couldn’t open {name === "new" ? `new ${cfg.doctype}` : name}</p>
+        <p className="font-medium">Couldn’t open {name === "new" ? `new ${cfg.label ?? cfg.doctype}` : name}</p>
         <p className="mt-1 text-sm text-muted-foreground">{(error as Error).message}</p>
         <Button asChild variant="outline" className="mt-4"><Link to={`/${cfg.route}`}>Back to {cfg.plural}</Link></Button>
       </div>
@@ -108,6 +108,8 @@ function DocEditor({ cfg, bundle, initial, initialValues, perms, reload }: { cfg
 
   const [rt] = useState(() => {
     const runtime = new FormRuntime(bundle, initial, host)
+    const spec = designs[bundle.config.doctype]
+    if (spec) runtime.configure({ rowDefaults: spec.rowDefaults, rowFormulas: spec.rowFormulas, rowFetch: spec.rowFetch })
     attachScripts(runtime, bundle.scripts)
     return runtime
   })
@@ -116,10 +118,15 @@ function DocEditor({ cfg, bundle, initial, initialValues, perms, reload }: { cfg
     rt.revive()
     if (!started.current) {
       started.current = true
-      void rt.start(initialValues).then(clearRouteOptions)
+      // design defaults fill empty fields of a new document ("$company" = the user's default company)
+      const spec = designs[cfg.doctype]
+      const defaults = rt.isNew && spec?.defaults
+        ? Object.fromEntries(Object.entries(spec.defaults).map(([k, v]) => [k, v === "$company" ? boot.defaults.company : v]).filter(([k, v]) => v && !rt.doc[k as string]))
+        : {}
+      void rt.start({ ...defaults, ...initialValues }).then(clearRouteOptions)
     }
     return () => rt.dispose()
-  }, [rt, initialValues])
+  }, [rt, initialValues, cfg.doctype, boot.defaults.company])
 
   const view = useSyncExternalStore(rt.subscribe, rt.getView)
   const doc = view.doc
@@ -131,6 +138,7 @@ function DocEditor({ cfg, bundle, initial, initialValues, perms, reload }: { cfg
   const [designed, setDesigned] = useState(() => {
     try { return localStorage.getItem(storeKey) !== "0" } catch { return true }
   })
+  const showDesign = Boolean(design && (designed || design.minimal))
   const toggleDesign = () => {
     setDesigned(!designed)
     try { localStorage.setItem(storeKey, designed ? "0" : "1") } catch { /* private mode */ }
@@ -200,25 +208,26 @@ function DocEditor({ cfg, bundle, initial, initialValues, perms, reload }: { cfg
   const canWrite = docstatus === 0 ? editable : docstatus === 1 && hasAllowOnSubmit && perms.write
   canSaveRef.current = Boolean(canWrite) && !busy
   const statusText = cfg.status_field && doc[cfg.status_field] ? String(doc[cfg.status_field]) : DOCSTATUS_LABEL[docstatus]
-  const title = isNew ? `New ${cfg.doctype}` : doc.name
+  const title = isNew ? `New ${cfg.label ?? cfg.doctype}` : doc.name
   const heading = !isNew && cfg.title_field && doc[cfg.title_field] && doc[cfg.title_field] !== doc.name ? doc[cfg.title_field] : null
   const isSingle = Boolean(cfg.is_single)
 
   return (
-    <div className="space-y-5 pb-10">
-      <div className="sticky top-0 z-20 -mx-4 -mt-6 flex flex-wrap items-center gap-3 border-b border-border bg-background/85 px-4 py-3 backdrop-blur md:-mx-8 md:px-8">
+    <div className="space-y-4 pb-8">
+      <div className="sticky top-0 z-20 -mx-4 -mt-4 border-b border-border bg-background/85 px-4 py-2 backdrop-blur md:-mx-6 md:px-6">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2">
         {!isSingle && <Button asChild variant="ghost" size="icon-sm"><Link to={`/${cfg.route}`} aria-label="Back"><ArrowLeft /></Link></Button>}
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
-            <h1 className="truncate text-xl font-semibold tracking-tight">{isSingle ? cfg.doctype : title}</h1>
+            <h1 className="truncate text-lg font-semibold tracking-tight">{isSingle ? cfg.doctype : title}</h1>
             {!isNew && !isSingle && <Badge tone={toneFor(statusText)}>{statusText}</Badge>}
             {view.dirty && !(isNew && !canWrite) && <Badge tone="warning">Not saved</Badge>}
           </div>
-          {(designed && design?.subtitle?.(doc)) || heading ? <p className="truncate text-sm text-muted-foreground">{(designed && design?.subtitle?.(doc)) || heading}</p> : null}
+          {(showDesign && design?.subtitle?.(doc)) || heading ? <p className="truncate text-xs text-muted-foreground">{(showDesign && design?.subtitle?.(doc)) || heading}</p> : null}
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <CustomButtons rt={rt} view={view} />
-          {design && <Button variant="ghost" size="sm" onClick={toggleDesign} title="Switch between the designed layout and the standard field layout"><LayoutTemplate /> {designed ? "Standard layout" : "Designed layout"}</Button>}
+          {design && !design.minimal && <Button variant="ghost" size="sm" onClick={toggleDesign} title="Switch between the designed layout and the standard field layout"><LayoutTemplate /> {designed ? "Standard layout" : "Designed layout"}</Button>}
           {!isNew && !isSingle && (
             <Button asChild variant="ghost" size="sm">
               <a href={`/printview?doctype=${encodeURIComponent(cfg.doctype)}&name=${encodeURIComponent(doc.name)}${bundle.meta.default_print_format ? `&format=${encodeURIComponent(bundle.meta.default_print_format)}` : ""}&trigger_print=1&no_letterhead=1`} target="_blank" rel="noreferrer"><Printer /> Print</a>
@@ -234,19 +243,23 @@ function DocEditor({ cfg, bundle, initial, initialValues, perms, reload }: { cfg
           )}
           {docstatus === 0 && submittable && perms.submit && <Button size="sm" disabled={!!busy} onClick={() => setConfirm("submit")}><Send /> {busy === "Submit" ? "Submitting…" : "Submit"}</Button>}
         </div>
+        </div>
       </div>
 
+      <div className="mx-auto w-full max-w-5xl space-y-4">
       {view.intro.map((i, n) => (
         <div key={n} className={`rounded-lg border px-4 py-2.5 text-sm ${i.color === "red" ? "border-destructive/40 bg-destructive/10" : i.color === "orange" || i.color === "yellow" ? "border-warning/40 bg-warning/10" : i.color === "green" ? "border-success/40 bg-success/10" : "border-primary/40 bg-primary/10"}`}>{i.message}</div>
       ))}
 
-      {designed && design ? (
+      {showDesign && design ? (
         <DesignedForm design={design} bundle={bundle} rt={rt} view={view} roles={boot.roles} canWrite={Boolean(canWrite)} errors={shownErrors} />
       ) : (
         <FormLayout bundle={bundle} rt={rt} view={view} roles={boot.roles} canWrite={Boolean(canWrite)} errors={shownErrors} />
       )}
 
-      <ConfirmDialog open={confirm === "submit"} title={`Submit ${doc.name ?? cfg.doctype}?`} description="Once submitted the document can’t be edited, only cancelled." confirmLabel="Submit" onClose={() => setConfirm(null)} onConfirm={() => void act("Submit")} />
+      </div>
+
+      <ConfirmDialog open={confirm === "submit"} title={`Submit ${doc.name ?? cfg.label ?? cfg.doctype}?`} description="Once submitted the document can’t be edited, only cancelled." confirmLabel="Submit" onClose={() => setConfirm(null)} onConfirm={() => void act("Submit")} />
       <ConfirmDialog open={confirm === "cancel"} title={`Cancel ${doc.name}?`} description="This reverses its ledger and stock entries." confirmLabel="Cancel document" destructive onClose={() => setConfirm(null)} onConfirm={() => void act("Cancel")} />
       <ConfirmDialog open={confirm === "delete"} title={`Delete ${doc.name}?`} description="This can’t be undone." confirmLabel="Delete" destructive onClose={() => setConfirm(null)} onConfirm={() => void remove()} />
     </div>

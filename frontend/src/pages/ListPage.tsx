@@ -66,7 +66,7 @@ function DocList({ cfg }: { cfg: PortalDoctype }) {
   })
 
   const fieldMap = useMemo(() => new Map(meta?.meta.fields.map((f) => [f.fieldname, f])), [meta])
-  const columns = cfg.list_fields.map((fn) => fieldMap.get(fn) ?? ({ fieldname: fn, label: fn === "name" ? cfg.doctype : fn, fieldtype: fn === "name" ? "Link" : "Data" } as DocField))
+  const columns = cfg.list_fields.map((fn) => fieldMap.get(fn) ?? ({ fieldname: fn, label: fn === "name" ? (cfg.label ?? cfg.doctype) : fn, fieldtype: fn === "name" ? "Link" : "Data" } as DocField))
   const hasStatusColumn = Boolean(cfg.status_field && cfg.list_fields.includes(cfg.status_field))
 
   const reset = (fn: () => void) => { fn(); setPage(1); setSelected(new Set()) }
@@ -75,7 +75,7 @@ function DocList({ cfg }: { cfg: PortalDoctype }) {
   const total = list.data?.total ?? 0
   const lastPage = Math.max(1, Math.ceil(total / pageSize))
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.name))
-  const label = (n: number) => `${n} ${n === 1 ? cfg.doctype.toLowerCase() : cfg.plural.toLowerCase()}`
+  const label = (n: number) => `${n} ${n === 1 ? (cfg.label ?? cfg.doctype).toLowerCase() : cfg.plural.toLowerCase()}`
 
   const sort = (field: string) => reset(() => setOrderBy((o) => (o?.field === field ? (o.dir === "asc" ? { field, dir: "desc" } : null) : { field, dir: "asc" })))
 
@@ -102,17 +102,17 @@ function DocList({ cfg }: { cfg: PortalDoctype }) {
     <div className="space-y-5">
       <div className="flex items-end gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{cfg.plural}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{cfg.plural}</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">{list.data ? label(total) : " "}</p>
         </div>
-        {cfg.perms.create && <Button className="ml-auto" onClick={() => navigate(`/${cfg.route}/new`)}><Plus /> New {cfg.doctype}</Button>}
+        {cfg.perms.create && <Button className="ml-auto" onClick={() => navigate(`/${cfg.route}/new`)}><Plus /> New {cfg.label ?? cfg.doctype}</Button>}
       </div>
 
       <div className="rounded-xl border border-border bg-card">
         <div className="flex flex-wrap items-center gap-3 p-4">
           <div className="relative min-w-60 flex-1 md:max-w-sm">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pl-9" placeholder={`Search ${cfg.doctype.toLowerCase()} or party…`} value={search} onChange={(e) => reset(() => setSearch(e.target.value))} />
+            <Input className="pl-9" placeholder={`Search ${(cfg.label ?? cfg.doctype).toLowerCase()} or party…`} value={search} onChange={(e) => reset(() => setSearch(e.target.value))} />
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-3">
             {cfg.party_doctype && <LinkField clearable className="w-56" doctype={cfg.party_doctype} value={party} placeholder={cfg.party_label} onChange={(v) => reset(() => setParty(v))} />}

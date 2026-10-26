@@ -48,7 +48,7 @@ function NumberInput({ value, onChange, disabled, integer, className, name }: { 
 }
 
 export function FieldInput({ df, value, onChange, doc, disabled, compact, getQuery, onAction }: Props) {
-  const cls = compact ? "h-8 text-[13px]" : undefined
+  const cls = compact ? "h-7 text-xs" : undefined
   const fn = df.fieldname
   switch (df.fieldtype) {
     case "Button":
@@ -70,7 +70,7 @@ export function FieldInput({ df, value, onChange, doc, disabled, compact, getQue
       )
     }
     case "Link":
-      return <LinkField name={fn} getQuery={getQuery} doctype={df.options ?? ""} value={value} onChange={onChange} disabled={disabled} className={compact ? "[&_input]:h-8 [&_input]:text-[13px]" : undefined} />
+      return <LinkField name={fn} getQuery={getQuery} doctype={df.options ?? ""} value={value} onChange={onChange} disabled={disabled} className={compact ? "[&_input]:h-7 [&_input]:text-xs" : undefined} />
     case "Dynamic Link": {
       const target = df.options ? doc[df.options] : null
       return target ? <LinkField name={fn} getQuery={getQuery} doctype={target} value={value} onChange={onChange} disabled={disabled} /> : <Input disabled value={value ?? ""} placeholder={`Set ${df.options} first`} className={cls} />
@@ -83,7 +83,7 @@ export function FieldInput({ df, value, onChange, doc, disabled, compact, getQue
       return <Input type="time" data-fieldname={fn} className={cls} value={value ?? ""} disabled={disabled} onChange={(e) => onChange(e.target.value || null)} />
     default:
       if (TEXTAREA.includes(df.fieldtype))
-        return <Textarea data-fieldname={fn} value={value ?? ""} disabled={disabled} onChange={(e) => onChange(e.target.value)} rows={compact ? 1 : 3} />
+        return <Textarea data-fieldname={fn} className={compact ? "h-7 min-h-7 py-1 text-xs" : undefined} value={value ?? ""} disabled={disabled} onChange={(e) => onChange(e.target.value)} rows={compact ? 1 : 3} />
       return <Input data-fieldname={fn} className={cls} value={value ?? ""} disabled={disabled || df.fieldtype === "Read Only"} onChange={(e) => onChange(e.target.value)} />
   }
 }

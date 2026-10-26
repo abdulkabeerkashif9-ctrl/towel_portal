@@ -4,6 +4,7 @@ import { ChevronRight, LayoutDashboard, Menu, PanelLeftClose, PanelLeftOpen, Moo
 import { useBoot, useTheme } from "@/hooks/data"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { CommandPalette, SearchButton } from "./CommandPalette"
 import { DoctypeIcon } from "./icons"
 import { UserMenu } from "./UserMenu"
@@ -115,7 +116,7 @@ export function AppShell() {
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8"><Outlet /></div>
+          <div className="mx-auto w-full max-w-[1400px] px-4 py-4 md:px-6"><ErrorBoundary key={location.pathname}><Outlet /></ErrorBoundary></div>
         </main>
       </div>
       <CommandPalette open={searchOpen} setOpen={setSearchOpen} />

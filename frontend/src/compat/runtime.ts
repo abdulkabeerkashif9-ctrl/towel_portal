@@ -85,7 +85,11 @@ export class FormRuntime {
   private overrides = new Map<string, Partial<DocField>>()
   private queries = new Map<string, (...a: any[]) => any>()
   private handlers: Record<string, Record<string, Function[]>> = {}
-  private fetches: { link: string; source: string; target: string }[] = []
+  private fetches: { link: string; source: string; target: string; table: string | null }[] = []
+  /** Per-table defaults for new rows (design `rowDefaults`), re-applied after an item is picked */
+  rowDefaults: Record<string, Row> = {}
+  /** Per-table computed fields, e.g. total_weight = qty × weight_per_unit */
+  rowFormulas: Record<string, Record<string, (row: Row) => number>> = {}
   private listeners = new Set<() => void>()
   private view!: View
   private pending = false
@@ -298,7 +302,7 @@ export class FormRuntime {
       const d = defaultFor(f)
       if (d !== undefined) row[f.fieldname] = d
     }
-    Object.assign(row, values)
+    Object.assign(row, this.rowDefaults[table] ?? {}, values)
     rows.push(row)
     this.markEdit()
     this.touch()
@@ -373,8 +377,15 @@ export class FormRuntime {
     }
   }
 
-  addFetch(link: string, source: string, target: string) {
-    this.fetches.push({ link, source, target })
+  addFetch(link: string, source: string, target: string, table: string | null = null) {
+    this.fetches.push({ link, source, target, table })
+  }
+
+  /** Applies a design's row behaviour: defaults, formulas and fetch-on-select rules */
+  configure(opts: { rowDefaults?: Record<string, Row>; rowFormulas?: Record<string, Record<string, (row: Row) => number>>; rowFetch?: { table: string; link: string; source: string; target: string }[] }) {
+    this.rowDefaults = opts.rowDefaults ?? {}
+    this.rowFormulas = opts.rowFormulas ?? {}
+    for (const f of opts.rowFetch ?? []) this.addFetch(f.link, f.source, f.target, f.table)
   }
 
   addButton(label: string, fn: (...a: any[]) => any, group?: string): JQuery {
@@ -412,7 +423,16 @@ export class FormRuntime {
     } catch (e) {
       msgprint({ title: "Error", indicator: "red", message: (e as Error).message })
     }
+    await this.applyFormulas(cdt, cdn)
     await this.trigger(field, cdt, cdn)
+  }
+
+  private async applyFormulas(cdt: string, cdn: string) {
+    const table = cdt === this.doctype ? null : this.tableForChild(cdt)
+    const formulas = table ? this.rowFormulas[table] : undefined
+    const row = formulas && this.getRow(cdt, cdn)
+    if (!formulas || !row) return
+    for (const [field, fn] of Object.entries(formulas)) await this.setValue(cdt, cdn, field, fn(row))
   }
 
   private async builtins(cdt: string, cdn: string, field: string, value: any, df: DocField | undefined) {
@@ -422,7 +442,8 @@ export class FormRuntime {
     // fetch_from: "<link field>.<field on the linked doctype>"
     if (df?.fieldtype === "Link" && df.options) {
       const deps = meta.fields.filter((f) => f.fetch_from?.startsWith(`${field}.`))
-      const legacy = cdt === this.doctype ? this.fetches.filter((f) => f.link === field) : []
+      const owner = cdt === this.doctype ? null : this.tableForChild(cdt) ?? null
+      const legacy = this.fetches.filter((f) => f.link === field && f.table === owner)
       if (deps.length || legacy.length) {
         const sources = [...deps.map((f) => f.fetch_from!.split(".")[1]), ...legacy.map((f) => f.source)]
         const got = value ? await call<Row>("frappe.client.get_value", { doctype: df.options, fieldname: JSON.stringify([...new Set(sources)]), filters: value }) : {}
@@ -437,7 +458,7 @@ export class FormRuntime {
       const row = this.getRow(cdt, cdn)
       const details = await call<Row>("get_item_details", { doctype: this.doctype, item_code: value, doc: this.doc, qty: row?.qty || 1 })
       const defaults = itemDefaults(details, this.childMeta(table)!.fields)
-      for (const [k, v] of Object.entries(defaults)) await this.setValue(cdt, cdn, k, v)
+      for (const [k, v] of Object.entries({ ...defaults, ...(this.rowDefaults[table] ?? {}) })) await this.setValue(cdt, cdn, k, v)
     }
 
     // choosing a tax template loads its rows

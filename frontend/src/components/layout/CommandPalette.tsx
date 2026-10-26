@@ -53,16 +53,16 @@ export function CommandPalette({ open, setOpen }: { open: boolean; setOpen: (o: 
         </Command.Group>
         <Command.Group heading="Create" className="text-xs text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5">
           {visible.filter((d) => d.perms.create).map((d) => (
-            <Command.Item key={`new-${d.route}`} className={item} value={`new ${d.doctype}`} onSelect={() => go(`/${d.route}/new`)}>
-              <Plus /> New {d.doctype}
+            <Command.Item key={`new-${d.route}`} className={item} value={`new ${d.label ?? d.doctype}`} onSelect={() => go(`/${d.route}/new`)}>
+              <Plus /> New {d.label ?? d.doctype}
             </Command.Item>
           ))}
         </Command.Group>
         {value.trim().length > 2 && (
           <Command.Group heading="Open document" className="text-xs text-muted-foreground [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5">
             {visible.map((d) => (
-              <Command.Item key={`open-${d.route}`} forceMount className={item} value={`open ${d.doctype} ${value}`} onSelect={() => go(`/${d.route}/${encodeURIComponent(value.trim())}`)}>
-                <DoctypeIcon name={d.icon} /> Open {d.doctype} “{value.trim()}”
+              <Command.Item key={`open-${d.route}`} forceMount className={item} value={`open ${d.label ?? d.doctype} ${value}`} onSelect={() => go(`/${d.route}/${encodeURIComponent(value.trim())}`)}>
+                <DoctypeIcon name={d.icon} /> Open {d.label ?? d.doctype} “{value.trim()}”
               </Command.Item>
             ))}
           </Command.Group>

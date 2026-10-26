@@ -2,14 +2,14 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 export const inputClass =
-  "h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60 read-only:opacity-80"
+  "h-8 w-full min-w-0 rounded-md border border-input bg-transparent px-2.5 text-[13px] outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60 read-only:opacity-80"
 
 export function Input({ className, ...props }: React.ComponentProps<"input">) {
   return <input className={cn(inputClass, className)} {...props} />
 }
 
 export function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
-  return <textarea className={cn(inputClass, "h-auto min-h-20 py-2", className)} {...props} />
+  return <textarea className={cn(inputClass, "h-auto min-h-16 py-1.5", className)} {...props} />
 }
 
 export function NativeSelect({ className, children, ...props }: React.ComponentProps<"select">) {

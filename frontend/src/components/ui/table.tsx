@@ -14,8 +14,8 @@ export function TR({ className, ...props }: React.ComponentProps<"tr">) {
   return <tr className={cn("border-b border-border transition-colors", className)} {...props} />
 }
 export function TH({ className, ...props }: React.ComponentProps<"th">) {
-  return <th className={cn("h-11 whitespace-nowrap px-4 text-left align-middle text-[11px] font-medium uppercase tracking-wider text-muted-foreground", className)} {...props} />
+  return <th className={cn("h-9 whitespace-nowrap px-3 text-left align-middle text-[11px] font-medium uppercase tracking-wider text-muted-foreground", className)} {...props} />
 }
 export function TD({ className, ...props }: React.ComponentProps<"td">) {
-  return <td className={cn("whitespace-nowrap px-4 py-3.5 align-middle", className)} {...props} />
+  return <td className={cn("whitespace-nowrap px-3 py-2.5 align-middle", className)} {...props} />
 }

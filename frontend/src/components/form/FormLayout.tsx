@@ -76,17 +76,17 @@ function SectionCard({ section, bundle, rt, view, roles, canWrite, errors, doc, 
   return (
     <section className="rounded-xl border border-border bg-card">
       {section.label || section.collapsible ? (
-        <button type="button" disabled={!section.collapsible} onClick={() => setOpen(!open)} className={cn("flex w-full items-center gap-2 px-5 py-3 text-left text-sm font-semibold", section.collapsible && "cursor-pointer")}>
+        <button type="button" disabled={!section.collapsible} onClick={() => setOpen(!open)} className={cn("flex w-full items-center gap-2 px-4 py-2 text-left text-[13px] font-semibold", section.collapsible && "cursor-pointer")}>
           {section.collapsible && <ChevronRight className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-90")} />}
           {section.label ?? "More"}
         </button>
       ) : null}
       {open && (
-        <div className={cn("space-y-4 px-5 pb-5", !(section.label || section.collapsible) && "pt-5")}>
+        <div className={cn("space-y-3 px-4 pb-4", !(section.label || section.collapsible) && "pt-4")}>
           {cols.length > 0 && (
-            <div className="grid gap-x-6 gap-y-4 max-md:!grid-cols-1" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(0, 1fr))` }}>
+            <div className="grid gap-x-4 gap-y-3 max-md:!grid-cols-1" style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(0, 1fr))` }}>
               {cols.map((col, ci) => (
-                <div key={ci} className="min-w-0 space-y-4">
+                <div key={ci} className="min-w-0 space-y-3">
                   {col.map((df, i) => (
                     <FieldRow key={`${df.fieldname}-${i}`} sectionLabel={section.label} df={df} bundle={bundle} rt={rt} view={view} roles={roles} canWrite={canWrite} invalid={errors.has(df.fieldname)} />
                   ))}
@@ -140,7 +140,7 @@ export function FieldRow({ sectionLabel, df: base, bundle, rt, view, roles, canW
         </>
       ) : (
         <>
-          <label className="mb-1.5 block text-[13px] font-medium text-muted-foreground">
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
             <Label text={df.label} />{required ? <span className="text-destructive"> *</span> : null}
           </label>
           <div className={cn(invalid && "[&_input]:border-destructive [&_select]:border-destructive [&_textarea]:border-destructive")}>

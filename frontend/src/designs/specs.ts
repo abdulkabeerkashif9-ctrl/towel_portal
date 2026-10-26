@@ -140,24 +140,24 @@ const masterBale: Design = {
 
 // ------------------------------------------------------------------ standard doctypes customised by Alwadaq
 
-const purchaseReceipt: Design = {
+/** "Purchase Gate Pass" is the Purchase Receipt doctype with only the fields the gate needs. */
+const purchaseGatePass: Design = {
   doctype: "Purchase Receipt",
+  minimal: true,
   subtitle: (d) => dash(d.supplier_name || d.supplier, d.posting_date),
-  stats: [
-    { label: "Quantity", field: "total_qty", format: "float" },
-    { label: "Net weight (kg)", field: "total_net_weight", format: "float" },
-    { label: "Serial numbers", field: "custom_total_serial_count", format: "int", tone: "info" },
-    { label: "Grand total", field: "grand_total", format: "currency", tone: "success" },
-  ],
-  scan: { field: "custom_scan_serial", label: "Scan serial numbers", placeholder: "Scan a serial number, then press Enter" },
+  defaults: { company: "$company" },
+  labels: { weight_per_unit: "Weight per bale", custom_serial_list: "Serial list", item_code: "Item" },
+  rowDefaults: { items: { uom: "Bale", stock_uom: "Bale", conversion_factor: 1 } },
+  rowFetch: [{ table: "items", link: "item_code", source: "custom_weight_per_bale", target: "weight_per_unit" }],
+  rowFormulas: { items: { total_weight: (r) => num(r.qty) * num(r.weight_per_unit) } },
   blocks: [
-    { type: "fields", title: "Receipt", columns: 4, fields: ["supplier", "supplier_name", "posting_date", "posting_time", "set_posting_time", "company", "set_warehouse", "supplier_delivery_note", "bill_no", "currency"] },
+    { type: "fields", columns: 3, fields: ["posting_date", "supplier", "set_warehouse"] },
     {
       type: "table",
-      title: "Items",
+      title: "Bales",
       table: "items",
-      columns: ["item_code", "item_name", "custom_scan_serial_no", "custom_serial_no_count", "qty", "uom", "weight_per_unit", "rate", "amount", "warehouse"],
-      totals: ["qty", "custom_serial_no_count", "amount"],
+      columns: ["item_code", "qty", "weight_per_unit", "total_weight", "custom_serial_list"],
+      totals: ["qty", "total_weight"],
     },
   ],
 }
@@ -221,5 +221,5 @@ const stockEntry: Design = {
 }
 
 export const designs: Record<string, Design> = Object.fromEntries(
-  [dailyIssuance, dailyProduction, dailyReceipt, masterBale, purchaseReceipt, deliveryNote, purchaseInvoice, stockEntry].map((d) => [d.doctype, d]),
+  [dailyIssuance, dailyProduction, dailyReceipt, masterBale, purchaseGatePass, deliveryNote, purchaseInvoice, stockEntry].map((d) => [d.doctype, d]),
 )

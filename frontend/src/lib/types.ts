@@ -36,6 +36,8 @@ export type Perms = Record<"read" | "write" | "create" | "submit" | "cancel" | "
 
 export interface PortalDoctype {
   doctype: string
+  /** Display name when it differs from the doctype (Purchase Receipt -> Purchase Gate Pass) */
+  label?: string
   route: string
   plural: string
   icon: string

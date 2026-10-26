@@ -50,7 +50,7 @@ export function DesignedForm({ design, bundle, rt, view, roles, canWrite, errors
   const editable = canWrite && !view.readOnlyAll
   const docstatus = doc.docstatus ?? 0
 
-  const hasRemaining = bundle.meta.fields.some(
+  const hasRemaining = !design.minimal && bundle.meta.fields.some(
     (f) => !claimed.has(f.fieldname) && (INPUT_TYPES.includes(f.fieldtype) || f.fieldtype === "Table") && isVisible(f, view, roles),
   )
 
@@ -63,11 +63,11 @@ export function DesignedForm({ design, bundle, rt, view, roles, canWrite, errors
   const renderBlock = (b: Block, key: string): React.ReactNode => {
     switch (b.type) {
       case "fields": {
-        const dfs = b.fields.map((n) => fieldMap.get(n)).filter((f): f is DocField => Boolean(f) && isVisible(f!, view, roles))
+        const dfs = b.fields.map((n) => fieldMap.get(n)).filter((f): f is DocField => Boolean(f) && isVisible(f!, view, roles)).map((f) => (design.labels?.[f.fieldname] ? { ...f, label: design.labels[f.fieldname] } : f))
         if (!dfs.length) return null
         return (
           <Card key={key} title={b.title}>
-            <div className={cn("grid grid-cols-1 gap-x-6 gap-y-4 p-5 sm:grid-cols-2", gridCols[b.columns ?? 3])}>
+            <div className={cn("grid grid-cols-1 gap-x-4 gap-y-3 p-4 sm:grid-cols-2", gridCols[b.columns ?? 3])}>
               {dfs.map((df) => (
                 <FieldRow key={df.fieldname} sectionLabel={null} df={df} bundle={bundle} rt={rt} view={view} roles={roles} canWrite={canWrite} invalid={errors.has(df.fieldname)} />
               ))}
@@ -96,7 +96,7 @@ export function DesignedForm({ design, bundle, rt, view, roles, canWrite, errors
               </>
             }
           >
-            <ChildTable bare hideAdd df={eff} meta={child} rt={rt} view={view} roles={roles} readOnly={ro} columns={b.columns} totals={b.totals} />
+            <ChildTable bare hideAdd labels={design.labels} df={eff} meta={child} rt={rt} view={view} roles={roles} readOnly={ro} columns={b.columns} totals={b.totals} />
           </Card>
         )
       }
@@ -122,9 +122,9 @@ export function DesignedForm({ design, bundle, rt, view, roles, canWrite, errors
   const showScan = design.scan && fieldMap.has(design.scan.field) && editable && docstatus === 0
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {showScan && <ScanBox spec={design.scan!} onScan={scan} />}
-      {design.stats && <StatCards stats={design.stats.filter((s) => !s.field || fieldMap.has(s.field))} doc={doc} />}
+      {design.stats && !design.minimal && <StatCards stats={design.stats.filter((s) => !s.field || fieldMap.has(s.field))} doc={doc} />}
       {design.blocks.map((b, i) => renderBlock(b, `b${i}`))}
 
       {hasRemaining && (

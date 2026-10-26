@@ -119,10 +119,13 @@ export function registerApps({ methods, cfgs, db, allPerms, metas }) {
   const docs = loadApps(roots)
   // Purchase Receipt / Serial No exist in ERPNext but not in the basic mock
   metas["Purchase Receipt"] ??= { title_field: "supplier_name", is_submittable: 1, fields: structuredClone(metas["Purchase Invoice"].fields) }
-  cfgs["Purchase Receipt"] ??= { ...cfgs["Purchase Invoice"], route: "purchase-receipt", plural: "Purchase Receipts", icon: "package", list_fields: ["name", "supplier_name", "posting_date", "total_qty", "grand_total", "status"] }
+  cfgs["Purchase Receipt"] ??= { ...cfgs["Purchase Invoice"], label: "Purchase Gate Pass", route: "purchase-receipt", plural: "Purchase Gate Passes", section: "Alwadaq Bales", icon: "package", list_fields: ["name", "supplier_name", "posting_date", "total_qty", "grand_total", "status"] }
   db["Purchase Receipt"] ??= structuredClone(db["Purchase Invoice"]).map((r) => ({ ...r, doctype: "Purchase Receipt", name: r.name.replace("PINV", "PREC") }))
   for (const dt of ["Delivery Note", "Purchase Invoice", "Stock Entry", "Purchase Receipt"]) metas[dt].fields = structuredClone(metas[dt].fields)
   const customChildren = applyCustomizations(roots, docs, metas)
+  metas["Purchase Receipt"].fields.find((f) => f.fieldname === "items").options = "Purchase Receipt Item"
+  metas["Purchase Receipt"].fields.push(toField({ fieldname: "set_warehouse", label: "Accepted Warehouse", fieldtype: "Link", options: "Warehouse" }), toField({ fieldname: "posting_date2", label: "x", fieldtype: "Data", hidden: 1 }))
+  ;(customChildren["Purchase Receipt Item"] ??= []).push(toField({ fieldname: "weight_per_unit", label: "Weight Per Unit", fieldtype: "Float" }), toField({ fieldname: "total_weight", label: "Total Weight", fieldtype: "Float", read_only: 1 }), toField({ fieldname: "conversion_factor", label: "UOM Conversion Factor", fieldtype: "Float" }), toField({ fieldname: "stock_uom", label: "Stock UOM", fieldtype: "Link", options: "UOM" }))
   const hooks = docs.__hooks ?? {}
   delete docs.__hooks
 

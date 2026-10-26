@@ -72,6 +72,7 @@ def _public_config(doctype, cfg):
 	meta = frappe.get_meta(doctype)
 	out = {k: v for k, v in cfg.items()}
 	out["doctype"] = doctype
+	out["label"] = cfg.get("label") or doctype  # display name, e.g. Purchase Receipt -> Purchase Gate Pass
 	# drop references to fields this site's doctype doesn't have (customised or older versions)
 	out["list_fields"] = [f for f in cfg.get("list_fields", []) if _valid_field(meta, f)]
 	for key in ("date_field", "party_field", "status_field", "title_field"):
@@ -469,22 +470,70 @@ def delete_doc(doctype, name):
 	return True
 
 
+def _filter_list(doctype, filters):
+	"""Frappe accepts filters as a dict ({field: value | [op, value]}) or a list; normalise to a list."""
+	if not filters:
+		return []
+	if isinstance(filters, dict):
+		out = []
+		for field, value in filters.items():
+			if isinstance(value, (list, tuple)) and len(value) == 2 and isinstance(value[0], str):
+				out.append([doctype, field, value[0], value[1]])
+			else:
+				out.append([doctype, field, "=", value])
+		return out
+	return [list(f) for f in filters]
+
+
 @frappe.whitelist()
 def search_link(doctype, txt="", filters=None, query=None, page_length=10):
-	"""Autocomplete for Link fields (same engine Desk uses, so link permissions apply).
+	"""Autocomplete for Link fields.
 
-	`query` is the optional custom search method a client script's ``set_query`` returned.
+	Plain lookups run through ``frappe.get_list`` so they work the same on every Frappe version and always
+	respect permissions. A custom query method (returned by a client script's ``set_query``) goes through
+	Frappe's own ``search_widget``.
 	"""
-	from frappe.desk.search import build_for_autosuggest, search_widget
+	page_length = min(cint(page_length) or 10, 50)
+	txt = (txt or "").strip()
+	parsed = frappe.parse_json(filters) if filters else None
 
-	results = search_widget(
+	if query:
+		from frappe.desk.search import build_for_autosuggest, search_widget
+
+		results = search_widget(doctype, txt, query=query, filters=parsed, page_length=page_length)
+		return build_for_autosuggest(results, doctype=doctype)
+
+	meta = frappe.get_meta(doctype)
+	title_field = meta.title_field if meta.title_field and meta.has_field(meta.title_field) else None
+	search_fields = [f.strip() for f in (meta.search_fields or "").split(",") if f.strip() and meta.has_field(f.strip())]
+	describe = list(dict.fromkeys(([title_field] if title_field else []) + search_fields))[:3]
+
+	flt_list = _filter_list(doctype, parsed)
+	if meta.has_field("disabled"):
+		flt_list.append([doctype, "disabled", "!=", 1])
+	if meta.has_field("enabled"):
+		flt_list.append([doctype, "enabled", "=", 1])
+
+	or_filters = []
+	if txt:
+		like = f"%{txt}%"
+		or_filters = [[doctype, "name", "like", like]] + [[doctype, f, "like", like] for f in describe]
+
+	rows = frappe.get_list(
 		doctype,
-		(txt or "").strip(),
-		query=query or None,
-		filters=frappe.parse_json(filters) if filters else None,
-		page_length=min(cint(page_length) or 10, 50),
+		fields=["name"] + describe,
+		filters=flt_list,
+		or_filters=or_filters,
+		order_by="modified desc",
+		limit_page_length=page_length,
 	)
-	return build_for_autosuggest(results, doctype=doctype)
+	return [
+		{
+			"value": row["name"],
+			"description": ", ".join(str(row[f]) for f in describe if row.get(f) and str(row[f]) != row["name"]),
+		}
+		for row in rows
+	]
 
 
 # ------------------------------------------------------- form interactions

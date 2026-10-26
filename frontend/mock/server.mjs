@@ -113,7 +113,7 @@ const methods = {
   get_item_details: ({ item_code }) => ({ item_name: item_code === "TWL-30x60" ? "Bath Towel 30x60" : `Item ${item_code}`, uom: "Nos", rate: 275, qty: 1 }),
   search_link: ({ doctype, txt }) => { const pool = { Customer: customers, Supplier: ["Yarn Traders", "Dye House Ltd"], Item: ["TWL-30x60", "TWL-20x40", "YARN-20S"], Company: ["Towel Production"], Currency: ["PKR", "USD"] }[doctype] ?? [`${doctype} A`, `${doctype} B`]; return pool.filter((v) => v.toLowerCase().includes((txt || "").toLowerCase())).map((value) => ({ value, description: doctype })) },
   change_password: () => true,
-  "frappe.client.get_value": ({ doctype, filters }) => ({ customer_name: filters, supplier_name: filters, item_name: filters }),
+  "frappe.client.get_value": ({ doctype, filters }) => ({ customer_name: filters, supplier_name: filters, item_name: filters, custom_weight_per_bale: "45", custom_weight: 45 }),
 }
 
 if (process.env.PORTAL_APP_ROOTS) {
